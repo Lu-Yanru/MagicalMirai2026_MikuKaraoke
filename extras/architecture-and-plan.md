@@ -127,14 +127,14 @@ The project is broken into 8 chunks. Each chunk produces something runnable and 
 
 #### Steps
 
-1. In the Codespace terminal, scaffold the project:
+x 1. In the Codespace terminal, scaffold the project:
    ```bash
    npm create vite@latest . -- --template vanilla-ts
    npm install
    npm install textalive-app-api
    ```
 
-2. Edit `vite.config.ts`:
+x 2. Edit `vite.config.ts`:
    ```ts
    import { defineConfig } from 'vite'
    export default defineConfig({
@@ -142,22 +142,22 @@ The project is broken into 8 chunks. Each chunk produces something runnable and 
    })
    ```
 
-3. Clean up Vite boilerplate:
+x 3. Clean up Vite boilerplate:
    ```bash
    rm -rf src/counter.ts src/typescript.svg public/vite.svg
    ```
 
-4. Replace `index.html` with a minimal shell (dark background, single `<div id="app">`, script tag pointing to `src/main.ts`).
+x 4. Replace `index.html` with a minimal shell (dark background, single `<div id="app">`, script tag pointing to `src/main.ts`).
 
-5. Replace `src/style.css` with base reset: `box-sizing: border-box`, `body` dark background `#0a0a0f`, white text, `height: 100vh`, `overflow: hidden`.
+x 5. Replace `src/style.css` with base reset: `box-sizing: border-box`, `body` dark background `#0a0a0f`, white text, `height: 100vh`, `overflow: hidden`.
 
-6. Replace `src/main.ts` with `console.log('scaffold ok')`.
+x 6. Replace `src/main.ts` with `console.log('scaffold ok')`.
 
-7. Run `npm run dev` and verify the blank page loads with no errors.
+x 7. Run `npm run dev` and verify the blank page loads with no errors.
 
-8. Create `.github/workflows/deploy.yml` with the GitHub Actions workflow (checkout → setup-node → `npm install` → `npm run build` with `VITE_TEXTALIVE_TOKEN` env var → deploy to `gh-pages` branch using `peaceiris/actions-gh-pages@v4`).
+x 8. Create `.github/workflows/deploy.yml` with the GitHub Actions workflow (checkout → setup-node → `npm install` → `npm run build` with `VITE_TEXTALIVE_TOKEN` env var → deploy to `gh-pages` branch using `peaceiris/actions-gh-pages@v4`).
 
-9. Add `VITE_TEXTALIVE_TOKEN` as a repository Actions secret (Settings → Secrets → Actions).
+x 9. Add `VITE_TEXTALIVE_TOKEN` as a repository Actions secret (Settings → Secrets → Actions).
 
 10. Set GitHub Pages source to branch `gh-pages`, folder `/ (root)` in repo Settings → Pages.
 

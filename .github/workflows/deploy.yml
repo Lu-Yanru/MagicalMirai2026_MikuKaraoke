@@ -1,0 +1,120 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# deploy.yml — Build and deploy to GitHub Pages on every push to main.
+#
+# What this file does, end to end:
+#   1. Triggered whenever a commit is pushed to the `main` branch.
+#   2. Checks out the source code from the repo.
+#   3. Installs Node.js and npm dependencies.
+#   4. Runs `npm run build` (Vite), which produces the compiled static site in
+#      the `dist/` folder. The TextAlive API token is injected as an env var so
+#      Vite can embed it at build time via `import.meta.env.VITE_TEXTALIVE_TOKEN`.
+#   5. Pushes only the contents of `dist/` to the `gh-pages` branch using the
+#      peaceiris/actions-gh-pages action. GitHub Pages then serves that branch.
+#
+# ⚠️  PRIVATE REPO WARNING
+#   GitHub Pages on a *private* repository requires a paid GitHub plan
+#   (Pro, Team, or Enterprise). The workflow itself will run fine, but
+#   the deployed page will not be publicly accessible until the repo is
+#   made public (after the contest judging period ends) unless you are
+#   on a paid plan that supports private Pages.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy to GitHub Pages
+
+# ── Trigger ──────────────────────────────────────────────────────────────────
+# Run this workflow only when commits are pushed to `main`.
+# Pull requests do NOT trigger a deploy (they would overwrite the live site).
+on:
+  push:
+    branches:
+      - main
+
+# ── Concurrency ───────────────────────────────────────────────────────────────
+# If two pushes happen in quick succession, cancel the older in-progress run
+# rather than letting both deploy simultaneously (which could cause a race on
+# the gh-pages branch). The group key is unique per workflow + branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    # Use the latest stable Ubuntu runner provided by GitHub.
+    runs-on: ubuntu-latest
+
+    # ── Permissions ────────────────────────────────────────────────────────────
+    # By default, the auto-generated GITHUB_TOKEN only has read access to the
+    # repo contents. We need *write* permission so that peaceiris/actions-gh-pages
+    # can push the built files to the `gh-pages` branch.
+    permissions:
+      contents: write
+
+    steps:
+      # ── Step 1: Checkout ────────────────────────────────────────────────────
+      # Downloads the full repository source code onto the runner.
+      # `fetch-depth: 0` fetches the complete git history; the default of 1
+      # (shallow clone) is fine for a build-only workflow, but full history is
+      # kept here in case git-based tools ever need it.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── Step 2: Set up Node.js ──────────────────────────────────────────────
+      # Installs the specified Node.js version on the runner.
+      # `cache: 'npm'` tells the action to cache the npm dependency cache
+      # directory between runs, keyed on package-lock.json. This significantly
+      # speeds up subsequent workflow runs when dependencies haven't changed.
+      #
+      # Version note: v4 of setup-node is used (not v5/v6) because v5+ requires
+      # runner version ≥ v2.327.1, which may not be guaranteed on all runners.
+      # Node 20 is the current LTS and is fully compatible with Vite 5+.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # ── Step 3: Install dependencies ────────────────────────────────────────
+      # `npm ci` (clean install) is preferred over `npm install` in CI because:
+      #   - It installs *exactly* what is in package-lock.json (no version drift).
+      #   - It deletes node_modules first, ensuring a clean slate every run.
+      #   - It fails if package-lock.json is out of sync with package.json,
+      #     which catches accidental lock file omissions before they reach prod.
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Step 4: Build the static site ───────────────────────────────────────
+      # Runs `vite build`, which compiles TypeScript, bundles all assets, and
+      # writes the output to `dist/`.
+      #
+      # VITE_TEXTALIVE_TOKEN is the TextAlive App API token. Vite automatically
+      # exposes any environment variable whose name starts with `VITE_` to the
+      # browser bundle via `import.meta.env`. We never commit the token to the
+      # repo; instead it lives as a GitHub Actions secret (Settings → Secrets →
+      # Actions) and is injected here at build time only.
+      - name: Build
+        run: npm run build
+        env:
+          VITE_TEXTALIVE_TOKEN: ${{ secrets.VITE_TEXTALIVE_TOKEN }}
+
+      # ── Step 5: Deploy to gh-pages branch ───────────────────────────────────
+      # Pushes the contents of `dist/` to the `gh-pages` branch.
+      # GitHub Pages is configured (in repo Settings → Pages) to serve from
+      # that branch's root.
+      #
+      # github_token: The auto-generated token for this workflow run. It has
+      #   `contents: write` permission (granted above) so it can push to
+      #   gh-pages without a separate deploy key or PAT.
+      #
+      # publish_dir: The folder Vite writes its output to. Must match the
+      #   `build.outDir` in vite.config.ts (Vite default is `dist`).
+      #
+      # The `if` condition ensures we only deploy when on main (important if
+      # you ever add pull_request as a trigger for validation runs).
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist

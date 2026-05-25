@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  base: 'MagicalMirai2026',
+  base: 'MagicalMirai2026_MikuKaraoke',
 })
