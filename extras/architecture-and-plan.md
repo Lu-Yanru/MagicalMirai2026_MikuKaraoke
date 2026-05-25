@@ -196,7 +196,7 @@ x 7. Add a `onAppMediaChange` listener that logs when the song changes, to confi
 
 ---
 
-### Chunk 3 — Beat-to-character mapping (scheduler)
+### x Chunk 3 — Beat-to-character mapping (scheduler)
 
 **Goal**: `scheduler.ts` produces a `CueEntry[]` array. Log it to the console and visually verify a few entries make sense against the lyrics.
 
@@ -204,24 +204,24 @@ x 7. Add a `onAppMediaChange` listener that logs when the song changes, to confi
 
 #### Steps
 
-1. Create `src/game/scheduler.ts` exporting a single function:
+x 1. Create `src/game/scheduler.ts` exporting a single function:
    ```ts
    export function buildSchedule(player: Player): CueEntry[]
    ```
 
-2. Inside, convert `player.video.firstChar` linked list to an array of `IChar` objects by walking `.next`.
+x 2. Inside, convert `player.video.firstChar` linked list to an array of `IChar` objects by walking `.next`.
 
-3. Get the beats array from `player.data.songMap.beats`. Verify the correct property name for the beat timestamp against the API docs before using it.
+x 3. Get the beats array from `player.data.songMap.beats`. Verify the correct property name for the beat timestamp against the API docs before using it.
 
-4. For each beat, find a character whose `startTime` is within ±100ms of the beat timestamp and has not already been assigned to a previous cue. If found, create a `CueEntry` with a random direction and `resolved: false`.
+x 4. For each beat, find a character whose `startTime` is within ±100ms of the beat timestamp and has not already been assigned to a previous cue. If found, create a `CueEntry` with a random direction and `resolved: false`.
 
-5. Add a helper `randomDirection(): Direction` that returns one of the four directions with equal probability.
+x 5. Add a helper `randomDirection(): Direction` that returns one of the four directions with equal probability.
 
-6. Call `buildSchedule(player)` inside `onVideoReady` in `main.ts` and log the result.
+x 6. Call `buildSchedule(player)` inside `onVideoReady` in `main.ts` and log the result.
 
-7. Manually verify 5–10 entries by comparing `charText` and `beatTime` to the song's known lyrics and tempo. They should feel evenly distributed and not cluster on long-held notes.
+x 7. Manually verify 5–10 entries by comparing `charText` and `beatTime` to the song's known lyrics and tempo. They should feel evenly distributed and not cluster on long-held notes.
 
-8. Handle the special case noted in the contest docs: the Grand Prize song "こたえて" has chorus characters with 1ms timing. These will effectively never match a beat and will naturally be skipped by the scheduler — confirm this in the log.
+x 8. Handle the special case noted in the contest docs: the Grand Prize song "こたえて" has chorus characters with 1ms timing. These will effectively never match a beat and will naturally be skipped by the scheduler — confirm this in the log.
 
 ---
 

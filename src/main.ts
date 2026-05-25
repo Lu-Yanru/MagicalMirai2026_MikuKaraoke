@@ -10,6 +10,11 @@
  */
 
 import { Player, type IPlayerApp, type IVideo } from "textalive-app-api";
+import { buildSchedule } from "./game/scheduler";
+import type { CueEntry } from "./types";
+
+// Cue schedule built in onVideoReady; consumed by the game loop and scoring.
+let scheduledCues: CueEntry[] = [];
 
 // ─── Player instantiation ─────────────────────────────────────────────────────
 //
@@ -60,34 +65,34 @@ player.addListener({
       // こたえて / imie (Grand Prize)
       // Note: chorus characters in paragraph 3 have 1 ms timing — see the
       // design doc and the chorus timings JSON linked from the support page.
-    //   player.createFromSongUrl("https://piapro.jp/t/6W2N/20251215164617", {
-    //     video: {
-    //       // 音楽地図訂正履歴
-    //       beatId: 4827293,
-    //       chordId: 2963754,
-    //       repetitiveSegmentId: 3086261,
-      
-    //       // 歌詞URL: https://piapro.jp/t/9o24
-    //       // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2F6W2N%2F20251215164617
-    //       lyricId: 126519,
-    //       lyricDiffId: 28645
-    //     },
-    //   });
-
-      // アフター・ザ・カーテン / Rulmry
-      player.createFromSongUrl("https://piapro.jp/t/zoqO/20251214200738", {
+      player.createFromSongUrl("https://piapro.jp/t/6W2N/20251215164617", {
         video: {
           // 音楽地図訂正履歴
-          beatId: 4827294,
-          chordId: 2963755,
-          repetitiveSegmentId: 3086262,
+          beatId: 4827293,
+          chordId: 2963754,
+          repetitiveSegmentId: 3086261,
       
-          // 歌詞URL: https://piapro.jp/t/EVO2
-          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FzoqO%2F20251214200738
-          lyricId: 126591,
-          lyricDiffId: 28627
+          // 歌詞URL: https://piapro.jp/t/9o24
+          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2F6W2N%2F20251215164617
+          lyricId: 126519,
+          lyricDiffId: 28645
         },
       });
+
+      // アフター・ザ・カーテン / Rulmry
+      // player.createFromSongUrl("https://piapro.jp/t/zoqO/20251214200738", {
+      //   video: {
+      //     // 音楽地図訂正履歴
+      //     beatId: 4827294,
+      //     chordId: 2963755,
+      //     repetitiveSegmentId: 3086262,
+      
+      //     // 歌詞URL: https://piapro.jp/t/EVO2
+      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FzoqO%2F20251214200738
+      //     lyricId: 126591,
+      //     lyricDiffId: 28627
+      //   },
+      // });
 
       // シャッターチャンス / 夜未アガリ
       // player.createFromSongUrl("https://piapro.jp/t/PNpQ/20251209170719", {
@@ -179,7 +184,19 @@ player.addListener({
 
     console.log(`beats: ${beatCount}, chars: ${charCount}`);
 
-    // TODO (Chunk 3):        Call buildSchedule(player) to build the cue list.
+    // Chunk 3 Step 6: Build the cue schedule and log it for manual verification.
+    // Each entry shows the beat timestamp, the matched character text, and the
+    // randomly assigned direction.
+    scheduledCues = buildSchedule(player);
+    console.log(
+      "schedule:",
+      scheduledCues.map((e) => ({
+        beatTime: e.beatTime,
+        char: e.char.text,
+        direction: e.direction,
+      }))
+    );
+
     // TODO (Chunk 5):        Call buildLyricDOM(player, container).
   },
 });
