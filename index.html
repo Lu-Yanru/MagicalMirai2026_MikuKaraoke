@@ -5,7 +5,15 @@
     <title>Miku Karaoke</title>
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+  <div id="app"></div>
+
+  <!--
+    Temporary play/pause control for Chunk 2 testing only.
+    Allows triggering song load without autoplay, which browsers block.
+    This button will be replaced by the full UI layout in Chunk 4.
+  -->
+  <button id="btn-play">Play / Pause</button>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
 </html>

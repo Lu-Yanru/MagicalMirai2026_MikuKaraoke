@@ -119,7 +119,7 @@ The project is broken into 8 chunks. Each chunk produces something runnable and 
 
 ---
 
-### Chunk 1 — Project scaffold and build pipeline
+### x Chunk 1 — Project scaffold and build pipeline
 
 **Goal**: A blank page that builds, runs in Codespace, and deploys to GitHub Pages without errors.
 
@@ -159,13 +159,13 @@ x 8. Create `.github/workflows/deploy.yml` with the GitHub Actions workflow (che
 
 x 9. Add `VITE_TEXTALIVE_TOKEN` as a repository Actions secret (Settings → Secrets → Actions).
 
-10. Set GitHub Pages source to branch `gh-pages`, folder `/ (root)` in repo Settings → Pages.
+x 10. Set GitHub Pages source to branch `gh-pages`, folder `/ (root)` in repo Settings → Pages.
 
-11. Push to `main`, confirm the Actions workflow passes, and confirm the deployed page loads at the GitHub Pages URL.
+x 11. Push to `main`, confirm the Actions workflow passes, and confirm the deployed page loads at the GitHub Pages URL.
 
 ---
 
-### Chunk 2 — TextAlive Player initialization
+### x Chunk 2 — TextAlive Player initialization
 
 **Goal**: The TextAlive Player loads a song, and the app logs beat count and character count to the console. No UI yet.
 
@@ -173,24 +173,24 @@ x 9. Add `VITE_TEXTALIVE_TOKEN` as a repository Actions secret (Settings → Sec
 
 #### Steps
 
-1. Create `src/types.ts` with the `Direction`, `RatingType`, `CueEntry`, `ScoreState`, and `SingerState` type definitions.
+x 1. Create `src/types.ts` with the `Direction`, `RatingType`, `CueEntry`, `ScoreState`, and `SingerState` type definitions.
 
-2. In `src/main.ts`, import `Player` from `textalive-app-api` and instantiate it:
+x 2. In `src/main.ts`, import `Player` from `textalive-app-api` and instantiate it:
    ```ts
    const player = new Player({
      app: { token: import.meta.env.VITE_TEXTALIVE_TOKEN },
    });
    ```
 
-3. Add a `player.addListener` block with `onAppReady` and `onVideoReady` callbacks. In `onAppReady`, call `player.createFromSongUrl(...)` with the versioned URL and `video` options (beatId, chordId, repetitiveSegmentId, lyricId, lyricDiffId) copied from the contest support page snippet.
+x 3. Add a `player.addListener` block with `onAppReady` and `onVideoReady` callbacks. In `onAppReady`, call `player.createFromSongUrl(...)` with the versioned URL and `video` options (beatId, chordId, repetitiveSegmentId, lyricId, lyricDiffId) copied from the contest support page snippet.
 
-4. In `onVideoReady`, log the beat array length (`player.data.songMap.beats.length`) and walk `player.video.firstChar` to count characters, logging the total.
+x 4. In `onVideoReady`, log the beat array length (`player.data.songMap.beats.length`) and walk `player.video.firstChar` to count characters, logging the total.
 
-5. Add basic playback controls (Play/Pause button in HTML) so you can trigger loading without autoplay issues. Wire to `player.requestPlay()` and `player.requestPause()`.
+x 5. Add basic playback controls (Play/Pause button in HTML) so you can trigger loading without autoplay issues. Wire to `player.requestPlay()` and `player.requestPause()`.
 
-6. Run `npm run dev`, click Play, and verify the console logs show correct non-zero counts.
+x 6. Run `npm run dev`, click Play, and verify the console logs show correct non-zero counts.
 
-7. Add a `onAppMediaChange` listener that logs when the song changes, to confirm the lifecycle is wired correctly.
+x 7. Add a `onAppMediaChange` listener that logs when the song changes, to confirm the lifecycle is wired correctly.
 
 **Note**: Verify `IBeat` property names in the API reference at `https://developer.textalive.jp/packages/textalive-app-api/interfaces/IBeat.html` before using `.startTime` — the actual property name may differ.
 

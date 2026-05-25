@@ -11,12 +11,6 @@
 #   5. Pushes only the contents of `dist/` to the `gh-pages` branch using the
 #      peaceiris/actions-gh-pages action. GitHub Pages then serves that branch.
 #
-# ⚠️  PRIVATE REPO WARNING
-#   GitHub Pages on a *private* repository requires a paid GitHub plan
-#   (Pro, Team, or Enterprise). The workflow itself will run fine, but
-#   the deployed page will not be publicly accessible until the repo is
-#   made public (after the contest judging period ends) unless you are
-#   on a paid plan that supports private Pages.
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Deploy to GitHub Pages
