@@ -1,13 +1,263 @@
+/* ─── Reset ──────────────────────────────────────────────────────────────────
+   border-box sizing on every element so padding never expands widths/heights
+   unexpectedly. Prerequisite for the pixel-precise fixed layout below.        */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
 
+/* ─── Root ───────────────────────────────────────────────────────────────────
+   body fills exactly one viewport height. overflow: hidden prevents any
+   accidental scrollbar on the page root — nothing outside #stage should ever
+   need to scroll.                                                              */
 body {
   margin: 0;
   background-color: #0a0a0f;
   color: #ffffff;
   height: 100vh;
   overflow: hidden;
+  font-family: sans-serif;
+}
+
+/* ─── HUD (8vh) ──────────────────────────────────────────────────────────────
+   Top bar: song title left, stats centre-right, play button far right.
+   height: 8vh matches the 8% slice in the layout diagram.
+   z-index: 10 keeps it above all #stage children.                             */
+#hud {
+  height: 8vh;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  gap: 0.75rem;
+  background-color: rgba(0, 0, 0, 0.7);
+  z-index: 10;
+  position: relative; /* required for z-index to take effect */
+}
+
+#song-title {
+  flex: 1;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.8;
+}
+
+#hud-stats {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.9rem;
+  /* tabular-nums: score digits have fixed width so the display never shifts
+     layout as numbers increment rapidly during gameplay.                       */
+  font-variant-numeric: tabular-nums;
+}
+
+#score::before { content: "Score: "; opacity: 0.55; }
+#combo::before  { content: "Combo: "; opacity: 0.55; }
+
+#btn-play {
+  padding: 0.3rem 0.8rem;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+#btn-play:hover  { background: rgba(255, 255, 255, 0.22); }
+#btn-play:active { background: rgba(255, 255, 255, 0.32); }
+
+/* ─── Stage (92vh) ───────────────────────────────────────────────────────────
+   Fills the remaining viewport height after the HUD.
+   position: relative makes #stage the containing block for all absolutely-
+   positioned children: #singer, #lyric-overlay, and #input-pad.
+   overflow: hidden clips any cue animation that strays outside the bounds.    */
+#stage {
+  height: 92vh;
+  position: relative;
+  overflow: hidden;
+  background-color: #111118; /* visible while singer image is loading */
+}
+
+/* ─── Singer sprite ──────────────────────────────────────────────────────────
+   Fills the entire #stage. object-fit: cover scales the image to fill without
+   distortion. object-position: center top keeps the character's face and upper
+   body in frame regardless of the stage's aspect ratio.
+   z-index: 0 — the lowest layer; everything else sits on top.                */
+#singer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  z-index: 0;
+}
+
+/* ─── Lyric overlay ──────────────────────────────────────────────────────────
+   Semi-transparent box pinned to the bottom 55% of #stage.
+   "bottom: 22%" leaves room for #input-pad (≈22vh) between the overlay bottom
+   edge and the stage bottom. The singer's face and upper body remain visible
+   in the uncovered top ~45% of the stage.
+
+   backdrop-filter: blur adds a frosted-glass effect on supporting browsers,
+   making the lyrics easier to read over a complex singer illustration.        */
+#lyric-overlay {
+  position: absolute;
+  bottom: 22%;   /* clears the input pad height */
+  left: 0;
+  right: 0;
+  height: 55%;   /* covers the lower 55% of #stage */
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  /* -webkit-backdrop-filter: blur(2px);  frosted-glass effct for Safari */
+  z-index: 1;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  gap: 0.75rem;
+}
+
+/* ─── Phrase rows ────────────────────────────────────────────────────────────
+   Each phrase row is a flex column: text wrap on top, cue bar below.
+   gap separates the text from the bar track.
+
+   .active — the phrase currently being sung; full opacity.
+   .next   — the upcoming phrase; dimmed so the player can read ahead without
+             it competing visually with the active row.                         */
+.phrase-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.phrase-row.active { opacity: 1; }
+.phrase-row.next   { opacity: 0.4; }
+
+/* ─── Phrase text wrap ───────────────────────────────────────────────────────
+   position: relative creates the stacking context for the two overlapping text
+   layers (.phrase-dim and .phrase-colored) that produce the karaoke fill.
+   white-space: nowrap keeps lyrics on one line; overflow: hidden clips any
+   phrase that is wider than the overlay.                                       */
+.phrase-text-wrap {
+  position: relative;
+  font-size: 1.6rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Dim base layer — always fully visible, acts as the "unsung" text colour.    */
+.phrase-dim {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* Teal fill layer — absolutely overlaps the dim layer at the same position.
+   clip-path: inset(0 X% 0 0) is updated every animation frame by lyrics.ts
+   to reveal the teal text left-to-right as the playhead advances.
+   No CSS transition here — the clip must follow the playhead with zero lag.   */
+.phrase-colored {
+  position: absolute;
+  inset: 0;
+  color: #1d9e75;
+  /* clip-path is set inline by lyrics.ts each frame; no transition */
+}
+
+/* ─── Cue bar track ──────────────────────────────────────────────────────────
+   Horizontal track the playhead dot and arrow cue divs sit on.
+   position: relative is the containing block for the absolutely-positioned
+   .playhead and .cue children.                                                */
+.bar-track {
+  position: relative;
+  height: 32px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+}
+
+/* ─── Playhead dot ───────────────────────────────────────────────────────────
+   Small white circle that slides left→right across the bar each frame.
+   left: X% is set inline by arrows.ts each animation frame.
+   transform: translate(-50%, -50%) centres the circle on its left position
+   and on the vertical midline of the bar.                                     */
+.playhead {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* ─── Arrow cues ─────────────────────────────────────────────────────────────
+   Each cue is an arrow Unicode character (↑ ↓ ← →) absolutely positioned on
+   the bar at its beat's barPosition percentage.
+   transform: translate(-50%, -50%) centres the character on its beat position
+   and on the bar's vertical midline (same as .playhead).                      */
+.cue {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 1.3rem;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ─── Input pad (≈22vh) ──────────────────────────────────────────────────────
+   Four large directional buttons pinned to the very bottom of #stage.
+   z-index: 2 — sits above the lyric overlay so taps are never intercepted.
+   height: 22% of #stage height (≈22vh) provides enough space for 80×80px
+   buttons with comfortable vertical padding.
+
+   touch-action: manipulation eliminates the 300ms tap delay on mobile by
+   telling the browser this element handles its own gestures.
+   -webkit-tap-highlight-color: transparent removes the default grey flash on
+   iOS when a button is tapped.                                                */
+#input-pad {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 22%;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: rgba(0, 0, 0, 0.5);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#input-pad button {
+  /* Each button takes an equal share of the pad width minus gaps */
+  flex: 1;
+  /* Floor at a comfortable tap size but in viewport units so it scales */
+  min-width: 0;
+  min-height: 0;
+  max-width: min(15vh, 15vw, 100px);
+  /*A square at any size*/
+  aspect-ratio: 1;
+  font-size: clamp(1.2rem, 5vw, 1.8rem);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#input-pad button:active {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(0.95);
 }

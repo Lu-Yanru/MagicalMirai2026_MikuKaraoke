@@ -4,14 +4,14 @@
 
 ## Technology Stack
 
-| Layer | Choice | Reason |
-|-------|--------|--------|
-| Language | TypeScript | TextAlive API ships with type definitions; autocomplete on all API interfaces |
-| Bundler | Vite | Zero-config TypeScript support; fast dev server; produces static output |
-| API | textalive-app-api (npm) | Beat, character, and lyric timing data |
-| Hosting | GitHub Pages | Free static hosting; fits contest static-only requirement |
-| CI/CD | GitHub Actions | Auto-deploy on push to `main` |
-| Codespace | GitHub Codespaces | Node.js pre-installed; no local setup needed |
+| Layer     | Choice                  | Reason                                                              |
+|-----------|-------------------------|---------------------------------------------------------------------|
+| Language  | TypeScript              | TextAlive API ships with type definitions; autocomplete on all interfaces |
+| Bundler   | Vite                    | Zero-config TypeScript support; fast dev server; produces static output |
+| API       | textalive-app-api (npm) | Beat, character, phrase, and lyric timing data                      |
+| Hosting   | GitHub Pages            | Free static hosting; fits contest static-only requirement           |
+| CI/CD     | GitHub Actions          | Auto-deploy on push to `main`                                       |
+| Codespace | GitHub Codespaces       | Node.js pre-installed; no local setup needed                        |
 
 ---
 
@@ -23,20 +23,20 @@ project-root/
 │   └── workflows/
 │       └── deploy.yml          ← GitHub Actions: build + deploy to gh-pages
 ├── public/
-│   └── (no files needed here for now)
+│   └── (static assets served as-is)
 ├── src/
 │   ├── main.ts                 ← Entry point: creates Player, mounts UI, wires events
 │   ├── style.css               ← Global styles, layout, animations
 │   ├── types.ts                ← Shared TypeScript interfaces
 │   │
 │   ├── game/
-│   │   ├── scheduler.ts        ← Beat-to-character mapping; builds the cue schedule
+│   │   ├── scheduler.ts        ← Beat-to-phrase mapping; builds the cue schedule
 │   │   ├── scoring.ts          ← Hit detection, rating calculation, score + combo state
 │   │   └── singer.ts           ← Singer state machine (idle/happy/great/sad)
 │   │
 │   └── ui/
-│       ├── arrows.ts           ← Arrow cue div lifecycle (spawn, resolve, animate out)
-│       ├── lyrics.ts           ← Per-character color flip, phrase scrolling
+│       ├── arrows.ts           ← Cue bar rendering: pre-place arrows, move playhead
+│       ├── lyrics.ts           ← Two-row phrase display, per-character color flip
 │       └── rating.ts           ← Rating word display and float-up animation
 │
 ├── assets/
@@ -46,7 +46,7 @@ project-root/
 │       ├── great.png           ← Singer sprite: combo ≥ 5
 │       └── sad.png             ← Singer sprite: Miss or Bad, combo = 0
 │
-├── index.html                  ← Single HTML shell; all content injected by JS
+├── index.html                  ← Single HTML shell; structure injected here or by JS
 ├── vite.config.ts              ← base path set to repo name for GitHub Pages
 ├── tsconfig.json               ← strict mode
 └── package.json
@@ -56,21 +56,22 @@ project-root/
 
 ## Architecture Overview
 
-The app has four layers that communicate in one direction (API → Game → UI → DOM). There is no shared mutable global state outside of the game engine module.
+The app has four layers that communicate in one direction (API → Game → UI → DOM).
+There is no shared mutable global state outside of the game engine module.
 
 ```
 TextAlive App API
-  │  Player object, beat events, character timing, word timing
+  │  Player object, beat events, character timing, phrase timing
   ▼
 Game Engine (src/game/)
-  │  scheduler.ts  — builds CueSchedule[] at load time
+  │  scheduler.ts  — builds PhraseRow[] and CueEntry[] at load time
   │  scoring.ts    — maintains score, combo, processes hits
   │  singer.ts     — derives singer state from score state
   ▼
 UI Layer (src/ui/)
-  │  arrows.ts     — renders and removes arrow cue divs
-  │  lyrics.ts     — updates character span colors each animation frame
-  │  rating.ts     — injects rating word, triggers CSS animation
+  │  lyrics.ts     — renders two phrase rows, updates clip-path color fill each frame
+  │  arrows.ts     — pre-places cue divs on bar, moves playhead div each frame
+  │  rating.ts     — replaces arrow with rating word, triggers CSS animation
   ▼
 DOM / CSS
      index.html structure + style.css animations
@@ -78,12 +79,18 @@ DOM / CSS
 
 ### Key Data Flow
 
-1. `onVideoReady` fires → `scheduler.ts` walks beats + characters → produces `CueEntry[]`
+1. `onVideoReady` fires → `scheduler.ts` walks beats + characters + phrases →
+   produces `PhraseRow[]` (each containing its `CueEntry[]` with pre-calculated
+   `barPosition` percentages)
 2. `requestAnimationFrame` loop runs every frame:
-   - `scoring.ts` checks current position against pending cues
-   - `lyrics.ts` calls `player.video.findChar(pos)` → updates colored spans
-   - `arrows.ts` shows/hides cue divs based on schedule
-3. Keypress / touch → `scoring.ts.handleInput(direction)` → rating → `rating.ts` displays word → `singer.ts` updates state
+   - `lyrics.ts` computes playhead progress for the active phrase and updates
+     `clip-path: inset(0 X% 0 0)` on the teal text layer — no per-character
+     work, one CSS property change per frame
+   - `arrows.ts` updates `playhead.style.left` for the active phrase bar
+   - `lyrics.ts` checks if position has passed `activePhrase.endTime` → triggers
+     phrase advance (swap top/bottom rows, pre-load next phrase)
+3. Keypress / touch → `scoring.ts.handleInput(direction)` → rating →
+   `rating.ts` displays word → `singer.ts` updates state
 
 ### Core Types (`src/types.ts`)
 
@@ -93,12 +100,21 @@ export type Direction = 'up' | 'down' | 'left' | 'right';
 export type RatingType = 'Perfect' | 'Great' | 'Good' | 'Bad' | 'Miss';
 
 export interface CueEntry {
-  beatTime: number;       // ms — beat timestamp from API
-  char: IChar;            // TextAlive character object
-  direction: Direction;   // randomly assigned at schedule build time
-  element: HTMLElement | null;  // the active cue div, null before spawned
-  timeoutId: number | null;     // miss timeout handle
-  resolved: boolean;      // true once rated (prevents double-scoring)
+  beatTime: number;             // ms — beat timestamp from API, used for hit detection
+  phraseIndex: number;          // index of the phrase this cue belongs to
+  barPosition: number;          // 0–100 — left% position on the phrase's cue bar
+  direction: Direction;         // randomly assigned at schedule build time
+  element: HTMLElement | null;  // the cue <div> on the bar, set when phrase is activated
+  timeoutId: number | null;     // miss timeout handle; cleared on successful hit
+  resolved: boolean;            // true once rated; prevents double-scoring
+}
+
+export interface PhraseRow {
+  phrase: IPhrase;                      // TextAlive phrase object
+  cues: CueEntry[];                     // all cues belonging to this phrase
+  element: HTMLElement | null;          // the phrase-row <div>
+  coloredLayer: HTMLElement | null;     // the teal text layer; clip-path updated each frame
+  playheadElement: HTMLElement | null;  // the sliding dot <div>
 }
 
 export interface ScoreState {
@@ -108,215 +124,366 @@ export interface ScoreState {
   counts: Record<RatingType, number>;
 }
 
-export type SingerState = 'idle' | 'happy' | 'great' | 'sad';
+export type SingerState = 'idle' | 'happy' | 'singing' | 'sad';
 ```
 
 ---
 
 ## Implementation Plan
 
-The project is broken into 8 chunks. Each chunk produces something runnable and testable before the next chunk begins. Within each chunk, steps are ordered so that each one is safe to implement and verify independently.
+The project is broken into 8 chunks. Each chunk produces something runnable and
+testable before the next begins. Chunks 1–3 are complete. Chunk 4 is partially
+complete (step 1 done). Steps marked `x` are already implemented.
 
 ---
 
-### x Chunk 1 — Project scaffold and build pipeline
+### ✅ Chunk 1 — Project scaffold and build pipeline (complete)
 
-**Goal**: A blank page that builds, runs in Codespace, and deploys to GitHub Pages without errors.
-
-**Success criterion**: `npm run dev` shows a blank dark page with no console errors. Pushing to `main` triggers the GitHub Actions workflow and the page is accessible at `https://username.github.io/repo-name/`.
+**Goal**: A blank page that builds, runs in Codespace, and deploys to GitHub
+Pages without errors.
 
 #### Steps
 
-x 1. In the Codespace terminal, scaffold the project:
-   ```bash
-   npm create vite@latest . -- --template vanilla-ts
-   npm install
-   npm install textalive-app-api
-   ```
-
-x 2. Edit `vite.config.ts`:
-   ```ts
-   import { defineConfig } from 'vite'
-   export default defineConfig({
-     base: '/your-repo-name/',
-   })
-   ```
-
-x 3. Clean up Vite boilerplate:
-   ```bash
-   rm -rf src/counter.ts src/typescript.svg public/vite.svg
-   ```
-
-x 4. Replace `index.html` with a minimal shell (dark background, single `<div id="app">`, script tag pointing to `src/main.ts`).
-
-x 5. Replace `src/style.css` with base reset: `box-sizing: border-box`, `body` dark background `#0a0a0f`, white text, `height: 100vh`, `overflow: hidden`.
-
+x 1. Scaffold with `npm create vite@latest . -- --template vanilla-ts`,
+     `npm install`, `npm install textalive-app-api`.
+x 2. Set `base` in `vite.config.ts` to the repo name for GitHub Pages.
+x 3. Remove Vite boilerplate (`counter.ts`, `typescript.svg`, `vite.svg`).
+x 4. Replace `index.html` with a minimal dark shell pointing to `src/main.ts`.
+x 5. Replace `src/style.css` with base reset (dark background, `height: 100vh`,
+     `overflow: hidden`).
 x 6. Replace `src/main.ts` with `console.log('scaffold ok')`.
-
-x 7. Run `npm run dev` and verify the blank page loads with no errors.
-
-x 8. Create `.github/workflows/deploy.yml` with the GitHub Actions workflow (checkout → setup-node → `npm install` → `npm run build` with `VITE_TEXTALIVE_TOKEN` env var → deploy to `gh-pages` branch using `peaceiris/actions-gh-pages@v4`).
-
-x 9. Add `VITE_TEXTALIVE_TOKEN` as a repository Actions secret (Settings → Secrets → Actions).
-
-x 10. Set GitHub Pages source to branch `gh-pages`, folder `/ (root)` in repo Settings → Pages.
-
-x 11. Push to `main`, confirm the Actions workflow passes, and confirm the deployed page loads at the GitHub Pages URL.
+x 7. Verify `npm run dev` shows a blank dark page with no console errors.
+x 8. Create `.github/workflows/deploy.yml` (checkout → setup-node →
+     `npm install` → `npm run build` with `VITE_TEXTALIVE_TOKEN` env var →
+     deploy via `peaceiris/actions-gh-pages@v4`).
+x 9. Add `VITE_TEXTALIVE_TOKEN` as a repository Actions secret.
+x 10. Set GitHub Pages source to branch `gh-pages`, folder `/ (root)`.
+x 11. Push to `main`, confirm Actions passes, confirm deployed page loads.
 
 ---
 
-### x Chunk 2 — TextAlive Player initialization
+### ✅ Chunk 2 — TextAlive Player initialization (complete)
 
-**Goal**: The TextAlive Player loads a song, and the app logs beat count and character count to the console. No UI yet.
-
-**Success criterion**: Console shows `beats: N, chars: M` where N and M are non-zero numbers for the chosen song.
+**Goal**: The TextAlive Player loads a song and logs beat count and character
+count to the console.
 
 #### Steps
 
-x 1. Create `src/types.ts` with the `Direction`, `RatingType`, `CueEntry`, `ScoreState`, and `SingerState` type definitions.
-
-x 2. In `src/main.ts`, import `Player` from `textalive-app-api` and instantiate it:
-   ```ts
-   const player = new Player({
-     app: { token: import.meta.env.VITE_TEXTALIVE_TOKEN },
-   });
-   ```
-
-x 3. Add a `player.addListener` block with `onAppReady` and `onVideoReady` callbacks. In `onAppReady`, call `player.createFromSongUrl(...)` with the versioned URL and `video` options (beatId, chordId, repetitiveSegmentId, lyricId, lyricDiffId) copied from the contest support page snippet.
-
-x 4. In `onVideoReady`, log the beat array length (`player.data.songMap.beats.length`) and walk `player.video.firstChar` to count characters, logging the total.
-
-x 5. Add basic playback controls (Play/Pause button in HTML) so you can trigger loading without autoplay issues. Wire to `player.requestPlay()` and `player.requestPause()`.
-
-x 6. Run `npm run dev`, click Play, and verify the console logs show correct non-zero counts.
-
-x 7. Add a `onAppMediaChange` listener that logs when the song changes, to confirm the lifecycle is wired correctly.
-
-**Note**: Verify `IBeat` property names in the API reference at `https://developer.textalive.jp/packages/textalive-app-api/interfaces/IBeat.html` before using `.startTime` — the actual property name may differ.
+x 1. Create `src/types.ts` with `Direction`, `RatingType`, `CueEntry`,
+     `PhraseRow`, `ScoreState`, and `SingerState` type definitions.
+x 2. Instantiate `Player` in `src/main.ts` using `VITE_TEXTALIVE_TOKEN`.
+x 3. Add `onAppReady` callback: call `player.createFromSongUrl(...)` with the
+     versioned contest URL and explicit `beatId`, `lyricId`, `lyricDiffId`.
+x 4. Add `onVideoReady` callback: log beat count and character count.
+x 5. Add Play/Pause buttons wired to `player.requestPlay()` /
+     `player.requestPause()`.
+x 6. Verify console logs show non-zero beat and character counts.
+x 7. Add `onAppMediaChange` listener to confirm lifecycle is wired correctly.
 
 ---
 
-### x Chunk 3 — Beat-to-character mapping (scheduler)
+### ✅ Chunk 3 — Beat-to-character mapping (scheduler) (complete)
 
-**Goal**: `scheduler.ts` produces a `CueEntry[]` array. Log it to the console and visually verify a few entries make sense against the lyrics.
-
-**Success criterion**: Console shows a list of `{ beatTime, charText, direction }` entries. No two entries share the same character. No entry falls within the duration of a previous character.
+**Goal**: `scheduler.ts` produces a `PhraseRow[]` array with pre-calculated
+`CueEntry[]` per phrase. Logged and manually verified.
 
 #### Steps
 
-x 1. Create `src/game/scheduler.ts` exporting a single function:
-   ```ts
-   export function buildSchedule(player: Player): CueEntry[]
-   ```
-
-x 2. Inside, convert `player.video.firstChar` linked list to an array of `IChar` objects by walking `.next`.
-
-x 3. Get the beats array from `player.data.songMap.beats`. Verify the correct property name for the beat timestamp against the API docs before using it.
-
-x 4. For each beat, find a character whose `startTime` is within ±100ms of the beat timestamp and has not already been assigned to a previous cue. If found, create a `CueEntry` with a random direction and `resolved: false`.
-
-x 5. Add a helper `randomDirection(): Direction` that returns one of the four directions with equal probability.
-
-x 6. Call `buildSchedule(player)` inside `onVideoReady` in `main.ts` and log the result.
-
-x 7. Manually verify 5–10 entries by comparing `charText` and `beatTime` to the song's known lyrics and tempo. They should feel evenly distributed and not cluster on long-held notes.
-
-x 8. Handle the special case noted in the contest docs: the Grand Prize song "こたえて" has chorus characters with 1ms timing. These will effectively never match a beat and will naturally be skipped by the scheduler — confirm this in the log.
+x 1. Create `src/game/scheduler.ts` exporting `buildSchedule(player): PhraseRow[]`.
+x 2. Convert `player.video.firstChar` linked list to an array by walking `.next`.
+x 3. Convert `player.video.firstPhrase` linked list to an array by walking `.next`.
+x 4. Get beats from `player.data.songMap.beats` (verify property name against
+     API docs — do not assume).
+x 5. For each beat, find a character whose `startTime` is within ±100ms of the
+     beat timestamp and has not already been assigned. Skip beats that fall
+     within an ongoing character's `startTime`–`endTime` range.
+x 6. For matched beats, create a `CueEntry` with a random direction,
+     `resolved: false`, and `barPosition` calculated as:
+     `(beatTime - phrase.startTime) / (phrase.endTime - phrase.startTime) * 100`
+x 7. Group `CueEntry[]` by phrase into `PhraseRow[]`.
+x 8. Add helper `randomDirection(): Direction`.
+x 9. Call `buildSchedule(player)` in `onVideoReady` and log the result.
+x 10. Manually verify 5–10 entries against lyrics and tempo.
+x 11. Confirm the "こたえて" chorus 1ms-timing characters are naturally skipped.
 
 ---
 
-### Chunk 4 — HTML layout and static UI shell
+### ✅ Chunk 4 — HTML layout and static UI shell
 
-**Goal**: The full UI layout is visible with placeholder content. No game logic yet.
+**Goal**: The full UI layout is visible with placeholder content. Singer fills
+the background. The overlay box with two phrase rows and the input pad are all
+in their correct positions. No game logic yet.
 
-**Success criterion**: The page shows the singer area, lyric area, score/combo display, and four arrow buttons in their correct positions. Looks correct on both desktop and a narrow (375px) mobile viewport.
+**Success criterion**: The page looks correct on both desktop and a 375px mobile
+viewport. The singer image is visible above the overlay. The two phrase-row
+slots, two cue bar tracks, and four arrow buttons are all present and correctly
+positioned.
 
 #### Steps
 
-1. Design the HTML structure in `index.html` (or inject via `main.ts`):
-   - `#hud` — top bar with song title, score, combo
-   - `#stage` — contains `#singer` (image) and `#cue-area` (where arrow divs appear)
-   - `#lyric-area` — scrollable text container
-   - `#input-pad` — four directional buttons
+x 1. Update `index.html` with the full HTML structure:
+     - `#hud` — top bar with `#song-title`, `#score`, `#combo`
+     - `#stage` — full-height container, `position: relative`
+       - `#singer` — `<img>` filling the stage background
+       - `#lyric-overlay` — semi-transparent box overlaid on the lower portion
+         of the stage, containing:
+         - `#phrase-top` — active phrase row (`<div class="phrase-row active">`)
+           - `#phrase-top-text` — character `<span>` elements go here
+           - `#bar-top` — cue bar track (`<div class="bar-track">`)
+         - `#phrase-bottom` — next phrase row (`<div class="phrase-row next">`)
+           - `#phrase-bottom-text`
+           - `#bar-bottom`
+     - `#input-pad` — four directional buttons outside and below the overlay
 
-2. In `src/style.css`, implement the layout using CSS Grid or Flexbox. The page should fill `100vh` with no overflow. Suggested row distribution: HUD ~10%, stage ~35%, lyrics ~30%, input pad ~25%.
+x 2. In `src/style.css`, implement the layout. The page fills `100vh` with no
+   overflow. Suggested proportions:
+   - `#hud`: ~8% height, flexbox row, space-between
+   - `#stage`: remaining height (~92%), `position: relative`, `overflow: hidden`
+   - `#singer`: `position: absolute`, `inset: 0`, `width: 100%`, `height: 100%`,
+     `object-fit: cover`, `object-position: center top`, `z-index: 0`
+   - `#lyric-overlay`: `position: absolute`, bottom-aligned within `#stage`,
+     ~55% of stage height, full width, `background: rgba(0,0,0,0.55)`,
+     `backdrop-filter: blur(2px)`, `z-index: 1`, padding `1rem`
+   - `#input-pad`: `position: absolute`, bottom of `#stage` or below it,
+     four buttons minimum 80×80px, `z-index: 2`
 
-3. Style `#input-pad` with four large touch-friendly buttons (minimum 80px × 80px tap targets), arranged in a cross/diamond layout or a 2×2 grid. Label them with arrow Unicode characters (↑ ↓ ← →).
+x 3. Style `.phrase-row`: flex column, gap between text and bar track. Style
+   `.phrase-row.next`: `opacity: 0.4`. Style `.phrase-row.active`: full opacity.
 
-4. Add placeholder singer image (can be a colored rectangle for now) in `#singer`.
+x 4. Style `.bar-track`: `position: relative`, `height: 32px`,
+   `background: rgba(255,255,255,0.15)`, `border-radius: 16px`, full width.
+   This is the track the playhead and cues sit on.
 
-5. Add placeholder lyric text in `#lyric-area` with a few Japanese characters styled as `<span>` elements, some with a `.sung` class (colored teal) and some unstyled — to preview the color flip effect.
+5. Add a placeholder singer image (a solid colored rectangle is fine) as `#singer`.
 
-6. Test on desktop and use browser DevTools to simulate a 375px mobile viewport. Adjust as needed.
+x 6. Add placeholder text in `#phrase-top-text` and `#phrase-bottom-text` using
+   two stacked `<div>` elements each: a dim base layer and a teal colored layer
+   on top (both containing the same sample Japanese text). Set the colored layer
+   to `clip-path: inset(0 40% 0 0)` to preview the partial fill effect.
+
+x 7. Add a placeholder `.playhead` div inside `#bar-top` at `left: 60%` and a
+   few placeholder `.cue` divs at various positions to preview bar layout.
+
+x 8. Test on desktop and simulate 375px in DevTools. Adjust until no overflow
+   and all elements are visible and correctly sized.
 
 ---
 
-### Chunk 5 — Lyric rendering and color flip
+### Chunk 5 — Lyric rendering, phrase display, and clip-path color fill
 
-**Goal**: Real lyrics from the API render in `#lyric-area`. Characters light up in real time as the song plays.
+**Goal**: Real lyrics render in the two phrase rows. The active phrase fills
+with teal color from left to right in perfect sync with the playhead. The rows
+swap correctly as the song progresses.
 
-**Success criterion**: Play the song. Characters turn teal exactly when they are sung. The lyric area scrolls smoothly to keep the current phrase visible.
+**Success criterion**: Play the song. The top row shows the current phrase with
+teal color filling smoothly from left to right as the playhead moves. The bottom
+row shows the next phrase dimly with no fill. When the phrase ends, rows swap
+instantly and the next phrase pre-loads. The color fill and the playhead dot
+are always at the same horizontal position.
 
 #### Steps
 
 1. Create `src/ui/lyrics.ts` exporting:
-   - `buildLyricDOM(player: Player, container: HTMLElement): void` — renders all phrases as divs, all characters as `<span data-start="..." data-end="...">` elements
-   - `updateLyrics(player: Player, container: HTMLElement): void` — called each animation frame; finds the current char and updates `.sung` class
+   - `initLyrics(phraseRows: PhraseRow[]): void` — builds DOM for all phrases
+     upfront and stores element references on each `PhraseRow`
+   - `activatePhrase(row: PhraseRow, topSlot: HTMLElement, bottomSlot: HTMLElement, isTop: boolean): void`
+     — inserts a phrase row into the correct slot
+   - `updateLyrics(activeRow: PhraseRow, position: number): void` — called each
+     animation frame; updates `clip-path` on the colored text layer
 
-2. In `buildLyricDOM`, walk `player.video.firstPhrase → firstWord → firstChar` (nested linked lists). For each phrase, create a `<div class="phrase">`. For each character, create a `<span>` with `data-start` set to `char.startTime` and `data-end` set to `char.endTime`.
+2. In `initLyrics`, for each `PhraseRow`:
+   - Create a `<div class="phrase-row">` and store it on `row.element`.
+   - Inside, create a text container `<div class="phrase-text-wrap">` with
+     `position: relative`. Inside that, create two divs with identical text
+     content (the full phrase text, no per-character splitting needed):
+     - `<div class="phrase-dim">` — base layer, dim color (e.g. `rgba(255,255,255,0.3)`)
+     - `<div class="phrase-colored">` — teal layer (`color: #1D9E75`),
+       `position: absolute`, `inset: 0`, initial `clip-path: inset(0 100% 0 0)`
+       (fully hidden). Store this element on `row.coloredLayer`.
+   - Create the `.bar-track` div with `position: relative`. Pre-place one
+     `<div class="cue">` per `CueEntry` at `style="left: {entry.barPosition}%"`,
+     inner text set to the arrow Unicode character. Store each element on
+     `entry.element`. Add a `<div class="playhead">` and store it on
+     `row.playheadElement`.
+   - Do **not** append phrase rows to the DOM yet — they are activated on demand.
 
-3. In `updateLyrics`, call `player.video.findChar(player.timer.position)` to get the current character. Find its span by `data-start` attribute and add class `sung`. Remove `sung` from any span whose `data-end` is in the past.
+3. In `updateLyrics`, compute progress and update the clip:
+   ```ts
+   export function updateLyrics(activeRow: PhraseRow, position: number): void {
+     const { phrase, coloredLayer } = activeRow;
+     if (!coloredLayer) return;
+     const progress = (position - phrase.startTime)
+                    / (phrase.endTime - phrase.startTime);
+     const pct = Math.min(Math.max(progress * 100, 0), 100);
+     // reveal teal layer left-to-right: clip away the right portion
+     coloredLayer.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+   }
+   ```
+   This is the only DOM update needed per frame for lyrics — one CSS property.
 
-4. Call `buildLyricDOM` inside `onVideoReady`. Start a `requestAnimationFrame` loop in `main.ts` after playback begins, calling `updateLyrics` each frame.
+4. In `main.ts`, after `buildSchedule`, call `initLyrics(phraseRows)`. Maintain
+   two index variables: `activeIndex` (top row) and `nextIndex` (bottom row).
+   Call `activatePhrase` for index 0 (top slot) and index 1 (bottom slot)
+   immediately after `onVideoReady`.
 
-5. Implement phrase scrolling: when the current phrase changes, call `phraseElement.scrollIntoView({ behavior: 'smooth', block: 'center' })` on the phrase div.
+5. In the `requestAnimationFrame` loop, call `updateLyrics` for the active row,
+   then check for phrase advance:
+   - If `player.timer.position >= phraseRows[nextIndex].phrase.startTime`:
+     - Increment both indices.
+     - Swap DOM: move current active row out, current next row into top slot.
+     - Call `activatePhrase` for the new `nextIndex` row into the bottom slot.
+     - Reset the newly-active row's `coloredLayer.style.clipPath` to
+       `inset(0 100% 0 0)` to ensure a clean fill start with no leftover state.
 
-6. Add CSS for `.sung` (color teal `#1D9E75`), `.phrase` (margin, line-height), and `span` (transition: `color 80ms ease`).
+6. Add CSS for the two text layers:
+   ```css
+   .phrase-text-wrap {
+     position: relative;
+     font-size: 2rem;
+     line-height: 1.4;
+     white-space: nowrap;
+   }
+   .phrase-dim {
+     color: rgba(255, 255, 255, 0.3);
+   }
+   .phrase-colored {
+     position: absolute;
+     inset: 0;
+     color: #1D9E75;
+     /* clip-path updated each frame — no transition, intentionally */
+   }
+   .playhead {
+     position: absolute;
+     width: 16px;
+     height: 16px;
+     border-radius: 50%;
+     background: white;
+     top: 50%;
+     transform: translate(-50%, -50%);
+     pointer-events: none;
+   }
+   .cue {
+     position: absolute;
+     transform: translateX(-50%);
+     font-size: 1.4rem;
+     top: 50%;
+     transform: translate(-50%, -50%);
+     pointer-events: none;
+   }
+   ```
 
-7. Test: play the song, watch characters light up. Verify that a held character (one with a long duration) stays lit until its `endTime` and does not prematurely advance.
+7. Test: play the song. Verify the teal fill and the playhead dot always sit at
+   exactly the same horizontal position. Verify the bottom row is fully dim with
+   no fill. Verify the phrase swap resets the fill cleanly with no leftover teal
+   from the previous phrase. Verify seeking backwards (if supported) clears the
+   fill correctly due to the `Math.max(progress, 0)` clamp.
 
 ---
 
-### Chunk 6 — Arrow cues and miss detection
+### Chunk 6 — Playhead animation and miss detection
 
-**Goal**: Arrow cues appear on screen at the correct beat times and resolve to "Miss" if not pressed.
+**Goal**: The playhead slides across the active bar in real time. Arrow cues
+auto-resolve to "Miss" if not pressed.
 
-**Success criterion**: Without pressing anything, play the song for 30 seconds. Arrow cues appear over the lyric area, float upward, and are replaced by a red "Miss" label that also floats up and fades. No arrows are shown on beats mid-character.
+**Success criterion**: Play without pressing anything for 30 seconds. The
+playhead moves smoothly. Each arrow cue is replaced by a red "Miss" label that
+floats up and fades. No miss fires during the next (dim) phrase.
 
 #### Steps
 
-1. Create `src/ui/arrows.ts` exporting:
-   - `spawnCue(entry: CueEntry, container: HTMLElement): void`
-   - `resolveCue(entry: CueEntry, rating: RatingType): void`
+1. In the `requestAnimationFrame` loop in `main.ts`, update the playhead
+   position each frame for the active phrase:
+   ```ts
+   const phrase = phraseRows[activeIndex].phrase;
+   const progress = (position - phrase.startTime)
+                  / (phrase.endTime - phrase.startTime);
+   row.playheadElement.style.left =
+     Math.min(Math.max(progress * 100, 0), 100) + '%';
+   ```
 
-2. In `spawnCue`: create a `<div class="cue">` positioned absolutely over the character's span (use `getBoundingClientRect()` on the character's `<span>` to get position). Set inner text to the arrow Unicode character. Store the element on `entry.element`. Set a `setTimeout` for `250 + 50 = 300ms` that calls `resolveCue(entry, 'Miss')` if `entry.resolved` is still `false`. Store the timeout ID on `entry.timeoutId`.
+2. Create `src/ui/rating.ts` exporting:
+   - `RATING_COLORS: Record<RatingType, string>` — color map for all five ratings
+   - `RATING_LABELS: Record<RatingType, string>` — display strings
+   - `resolveCue(entry: CueEntry, rating: RatingType): void` — replaces arrow
+     with rating word, triggers animation, schedules DOM removal
 
-3. In `resolveCue`: if `entry.resolved` is `true`, return immediately (guard against double-resolution). Set `entry.resolved = true`. Replace the div's text content with the rating string. Apply a CSS class matching the rating (`.rating-perfect`, `.rating-miss`, etc.). After the animation duration (600ms), remove the element from the DOM.
+3. In `resolveCue`:
+   - Guard: if `entry.resolved` is `true`, return immediately.
+   - Set `entry.resolved = true`.
+   - Replace `entry.element` text content with the rating label.
+   - Set the element's color to `RATING_COLORS[rating]`.
+   - Add CSS class `cue-resolved` which triggers the float-up animation.
+   - After 600ms (`setTimeout`), remove the element from the DOM.
 
-4. Create `src/ui/rating.ts` exporting the CSS class names and a color map for the five ratings. Keep styling logic here, not in `arrows.ts`.
+4. Create `src/ui/arrows.ts` exporting:
+   - `armCues(row: PhraseRow): void` — sets miss timeouts for all cues in a
+     phrase row when that row becomes active
 
-5. Add CSS for `.cue` (absolute position, large font, z-index above lyrics), and `@keyframes ratingPop` (translateY 0 → -40px, opacity 1 → 0, duration 600ms, `forwards`). Add color classes for each rating.
+5. In `armCues`, for each unresolved cue in `row.cues`:
+   - Calculate the time remaining until the miss window closes:
+     `delay = (cue.beatTime - player.timer.position) + 300` (250ms window + 50ms buffer)
+   - Set `cue.timeoutId = setTimeout(() => resolveCue(cue, 'Miss'), delay)`
 
-6. In the `requestAnimationFrame` loop in `main.ts`, iterate `scheduledCues`. For each entry where `!entry.resolved && !entry.element && player.timer.position >= entry.beatTime - 100`, call `spawnCue`.
+6. Call `armCues(row)` whenever a phrase row is activated (in the phrase-advance
+   logic from Chunk 5).
 
-7. Test: play without pressing anything. Confirm all arrows become "Miss". Confirm no arrows appear between the start and end of a long-held character.
+7. Add CSS `@keyframes ratingPop`:
+   ```css
+   @keyframes ratingPop {
+     0%   { transform: translateX(-50%) translateY(0);    opacity: 1; }
+     100% { transform: translateX(-50%) translateY(-36px); opacity: 0; }
+   }
+   .cue-resolved { animation: ratingPop 600ms ease-out forwards; }
+   ```
+   Add color classes `.rating-perfect`, `.rating-great`, etc.
+
+8. Test: play without pressing. Confirm every arrow becomes "Miss". Confirm the
+   next (dim) phrase's arrows do not fire early. Confirm the playhead stays
+   within the bar bounds (clamp at 0% and 100%).
 
 ---
 
 ### Chunk 7 — Input handling and scoring
 
-**Goal**: Pressing the correct arrow key (or button) at the right time produces a rating. Score and combo update on screen.
+**Goal**: Pressing the correct arrow key or button at the right time produces
+a rating. Score and combo update on screen.
 
-**Success criterion**: Play the song and press arrow keys. Correct presses produce "Perfect"/"Great"/"Good"/"Bad" labels. Wrong-direction presses are ignored. Score and combo increment and reset correctly.
+**Success criterion**: Play the song and press arrow keys. Correct presses in
+time produce Perfect/Great/Good/Bad. Wrong-direction presses are ignored. Combo
+resets on Bad and Miss. Score increments correctly.
 
 #### Steps
 
-1. Create `src/game/scoring.ts` exporting:
-   - `ScoreManager` class with `state: ScoreState`, `handleInput(direction: Direction, now: number, cues: CueEntry[]): void`, and `applyRating(rating: RatingType): void`
+1. Create `src/game/scoring.ts` exporting a `ScoreManager` class with:
+   - `state: ScoreState`
+   - `handleInput(direction: Direction, now: number, activeRow: PhraseRow): void`
+   - `applyRating(rating: RatingType): void`
 
-2. In `handleInput`: find the first unresolved cue in `cues` whose `beatTime` is within the past 250ms and future 250ms (the active window). If none, return (stray press). If found and `direction !== cue.direction`, return (wrong direction — miss timeout handles it). If direction matches, compute `delta = Math.abs(now - cue.beatTime)` and derive rating from the timing windows. Call `clearTimeout(cue.timeoutId)`. Call `resolveCue(cue, rating)`. Call `applyRating(rating)`.
+2. In `handleInput`:
+   - Find the first unresolved cue in `activeRow.cues` whose `beatTime` is
+     within `[now - 250, now + 250]`. If none found, return (stray press).
+   - If `cue.direction !== direction`, return (wrong direction — miss timeout
+     handles it naturally).
+   - If direction matches, compute `delta = Math.abs(now - cue.beatTime)` and
+     assign rating:
+     - `delta <= 50`  → Perfect
+     - `delta <= 100` → Great
+     - `delta <= 150` → Good
+     - `delta <= 250` → Bad
+   - Call `clearTimeout(cue.timeoutId)` to cancel the miss timer.
+   - Call `resolveCue(cue, rating)` to display the rating word.
+   - Call `applyRating(rating)` to update score state.
 
-3. In `applyRating`: update `state.score` (Perfect: +300, Great: +200, Good: +100, Bad: +50, Miss: +0). Increment `state.combo` for Perfect/Great/Good; reset to 0 for Bad/Miss. Update `state.maxCombo`. Increment `state.counts[rating]`. Emit a custom DOM event `scoreupdate` with the new state so the HUD can react without `scoring.ts` knowing about the DOM.
+3. In `applyRating`:
+   - Add points: Perfect +300, Great +200, Good +100, Bad +50, Miss +0.
+   - Increment `combo` for Perfect/Great/Good; reset to 0 for Bad/Miss.
+   - Update `maxCombo` if `combo > maxCombo`.
+   - Increment `counts[rating]`.
+   - Dispatch a custom DOM event `scoreupdate` with the new state as detail,
+     so the HUD and singer can react without `scoring.ts` knowing about the DOM:
+     ```ts
+     document.dispatchEvent(new CustomEvent('scoreupdate', { detail: this.state }));
+     ```
 
 4. Add keyboard listener in `main.ts`:
    ```ts
@@ -325,23 +492,35 @@ x 8. Handle the special case noted in the contest docs: the Grand Prize song "�
        ArrowUp: 'up', ArrowDown: 'down',
        ArrowLeft: 'left', ArrowRight: 'right'
      };
-     if (map[e.key]) scoreManager.handleInput(map[e.key], player.timer.position, scheduledCues);
+     if (map[e.key]) {
+       e.preventDefault(); // stop page scroll on arrow keys
+       scoreManager.handleInput(map[e.key], player.timer.position,
+                                phraseRows[activeIndex]);
+     }
    });
    ```
 
-5. Add `click` / `touchstart` listeners on the four `#input-pad` buttons, each calling `handleInput` with the appropriate direction.
+5. Add `click` and `touchstart` listeners on the four `#input-pad` buttons,
+   each calling `handleInput` with the appropriate direction. Use `touchstart`
+   (not `click`) for lower latency on mobile. Call `e.preventDefault()` on
+   touch events to avoid double-firing.
 
-6. In `main.ts`, listen for `scoreupdate` and update `#score` and `#combo` text content in the HUD.
+6. Listen for `scoreupdate` in `main.ts` and update `#score` and `#combo`
+   text content in the HUD.
 
-7. Test: play the song. Verify each rating fires correctly. Verify stray presses do nothing. Verify combo resets on Bad and Miss. Verify the miss timeout still fires if you press wrong direction.
+7. Test: play and press keys. Verify each timing window produces the correct
+   rating. Verify stray presses do nothing. Verify wrong-direction presses
+   do nothing and the miss still fires. Verify combo resets on Bad and Miss.
 
 ---
 
 ### Chunk 8 — Singer state machine and polish
 
-**Goal**: The singer sprite reacts to score state. The game has a start screen and an end screen. The app is ready for submission.
+**Goal**: The singer sprite reacts to score state. The game has a start screen
+and an end screen. The app is ready for submission.
 
-**Success criterion**: Full playthrough works end-to-end. Singer changes expression visibly. Results are shown at song end. The app runs correctly on mobile (touch) and desktop (keyboard).
+**Success criterion**: Full playthrough works end-to-end. Singer changes
+expression visibly. Results are shown at song end. Works on mobile and desktop.
 
 #### Steps
 
@@ -349,60 +528,101 @@ x 8. Handle the special case noted in the contest docs: the Grand Prize song "�
    - `getSingerState(state: ScoreState, lastRating: RatingType | null): SingerState`
 
 2. Implement state logic:
-   - `idle`: before playback or between phrases
-   - `happy`: last rating was Perfect, or combo ≥ 10
-   - `great`: combo ≥ 5 and < 10
-   - `sad`: last rating was Miss or Bad, or combo === 0 after a non-zero combo
+   - `idle`: no `lastRating` yet (before first cue)
+   - `happy`: `lastRating === 'Perfect'` or `combo >= 10`
+   - `great`: `combo >= 5` and `combo < 10`
+   - `sad`: `lastRating === 'Miss'` or `lastRating === 'Bad'` or `combo === 0`
+   - Default (otherwise): `great` or `happy` based on combo threshold
 
-3. In `main.ts`, on each `scoreupdate` event, call `getSingerState` and update the `<img id="singer">` src attribute to the matching asset path. Add a CSS class `singer-bounce` that plays a brief scale animation (1 → 1.1 → 1) on state change, removed after the animation ends.
+3. In `main.ts`, listen for `scoreupdate`. On each event, call `getSingerState`
+   and update `<img id="singer">` src to the matching asset path. If the state
+   changed, add CSS class `singer-bounce` to the img and remove it after the
+   animation ends (`animationend` event listener, `{ once: true }`).
 
-4. Add real singer sprite images to `assets/singer/`. If final art is not ready, use clearly labeled placeholder colored rectangles for now and swap in real art later.
+4. Add singer sprite images to `assets/singer/`. Use clearly labeled placeholder
+   colored rectangles if final art is not ready — swap in real art later. The
+   images should be portrait-oriented so `object-fit: cover` keeps the face
+   visible.
 
-5. Add a start screen overlay (`#screen-start`) shown before playback begins. It should display the song title, a "Tap to start" prompt, and song selection if multiple songs are supported. Clicking/tapping dismisses it and calls `player.requestPlay()`.
+5. Add CSS for singer bounce:
+   ```css
+   @keyframes singerBounce {
+     0%   { transform: scale(1); }
+     50%  { transform: scale(1.04); }
+     100% { transform: scale(1); }
+   }
+   .singer-bounce { animation: singerBounce 200ms ease-out; }
+   ```
 
-6. Add an end screen overlay (`#screen-end`) shown when `onStop` fires (end of song). Display total score, max combo, and a count of each rating. Add a "Play again" button that reloads the page.
+6. Add a start screen overlay (`#screen-start`) shown before playback begins:
+   - Display the game title, song name, and "Tap to start" prompt.
+   - Optionally show song selection if multiple songs are implemented.
+   - On click/tap: hide the overlay, call `player.requestPlay()`.
 
-7. Wire `player.addListener({ onStop: showEndScreen })`.
+7. Add an end screen overlay (`#screen-end`) hidden initially:
+   - Show: total score, max combo, and a breakdown of each rating count.
+   - Add a "Play again" button that calls `location.reload()`.
 
-8. Final responsive check: open DevTools, simulate iPhone SE (375×667). Verify buttons are tappable, lyrics are readable, singer is visible, no overflow.
+8. Wire `player.addListener({ onStop: () => showEndScreen(scoreManager.state) })`.
 
-9. Final accessibility pass: add `aria-label` to all four input buttons. Ensure the page has a `<title>` and `lang="ja"` on `<html>`.
+9. Final responsive check: simulate iPhone SE (375×667) in DevTools. Verify
+   buttons are tappable, lyrics are readable, singer is visible above the
+   overlay, no overflow.
 
-10. Run `npm run build` locally and check the `dist/` folder. Open `dist/index.html` via a local HTTP server (`npx serve dist`) to confirm the production build works, including asset paths.
+10. Final accessibility pass:
+    - Add `aria-label` to all four input buttons (e.g. `aria-label="Up"`).
+    - Ensure `<html lang="ja">` and a descriptive `<title>` are set.
 
-11. Push to `main`. Confirm GitHub Actions deploys successfully. Test the live GitHub Pages URL on both desktop and a real mobile device.
+11. Run `npm run build` and verify the `dist/` output. Serve locally with
+    `npx serve dist` and confirm asset paths and the token env var work
+    correctly in the production build.
+
+12. Push to `main`. Confirm GitHub Actions deploys successfully. Test the live
+    GitHub Pages URL on both desktop and a real mobile device.
 
 ---
 
 ## Timing Reference
 
-Approximate time budget for a 1-month development window:
+| Chunk                      | Status      | Estimated time  |
+|----------------------------|-------------|-----------------|
+| 1 — Scaffold               | ✅ Complete  | —               |
+| 2 — Player init            | ✅ Complete  | —               |
+| 3 — Scheduler              | ✅ Complete  | —               |
+| 4 — UI layout              | 🔄 In progress (step 1 done) | ~1 day remaining |
+| 5 — Lyric rendering        | Not started | 2 days          |
+| 6 — Playhead + miss        | Not started | 2 days          |
+| 7 — Input + scoring        | Not started | 2–3 days        |
+| 8 — Singer + polish        | Not started | 3–4 days        |
+| Singer art (parallel)      | Not started | 1 week          |
+| Buffer / bug fixing        | —           | 3–4 days        |
 
-| Chunk | Estimated time |
-|-------|---------------|
-| 1 — Scaffold | 0.5 day |
-| 2 — Player init | 1 day |
-| 3 — Scheduler | 1–2 days |
-| 4 — UI layout | 1–2 days |
-| 5 — Lyric color flip | 2 days |
-| 6 — Arrow cues + miss | 2–3 days |
-| 7 — Input + scoring | 2–3 days |
-| 8 — Singer + polish | 3–4 days |
-| Singer art (parallel) | 1 week (start early) |
-| Buffer / bug fixing | 3–4 days |
+**Remaining: ~2.5–3 weeks of focused part-time work.**
 
-**Total: ~3.5 weeks of focused part-time work.**
-
-Start the singer art in week 1 in parallel with Chunks 1–3. Art is the biggest scheduling wildcard since it cannot be AI-generated and requires either drawing skill or finding a licensed artist.
+Start singer art immediately in parallel — it is the only deliverable that
+cannot be accelerated with code and is the biggest scheduling wildcard.
 
 ---
 
 ## Important Constraints and Reminders
 
 - Singer art must not be AI-generated (contest rule). Start early.
-- The TextAlive app token must not be committed to the repository. Use `VITE_TEXTALIVE_TOKEN` as a Vite environment variable, loaded from GitHub Secrets in CI and from a Codespace secret in development.
-- The repository must remain **private** until judging is complete. Do not publish demo videos or screenshots before the submission deadline.
-- After the submission deadline, do not push any commits until prize-winning entries are announced — the final commit at the deadline is what is judged.
-- Use the versioned song URLs with explicit `beatId`, `lyricId`, and `lyricDiffId` values from the contest support page to ensure timing data does not change during judging.
-- The Grand Prize song "こたえて" has chorus characters with artificially short (1ms) timing. The scheduler will naturally skip these, but verify this during Chunk 3 testing.
-- Always verify API method and property names against the live documentation at `https://developer.textalive.jp/packages/textalive-app-api/modules.html` before using them. Do not assume property names from memory.
+- The TextAlive app token must not be committed to the repository. Use
+  `VITE_TEXTALIVE_TOKEN` as a Vite env variable, loaded from GitHub Actions
+  secrets in CI and from a Codespace secret in development.
+- The repository must remain **private** until judging is complete. Do not
+  publish demo videos or screenshots before the submission deadline.
+- After the submission deadline, do not push any commits until prize-winning
+  entries are announced — the final commit at the deadline is what is judged.
+- Use the versioned song URLs with explicit `beatId`, `lyricId`, and
+  `lyricDiffId` values from the contest support page to ensure timing data
+  does not change during judging.
+- The Grand Prize song "こたえて" has chorus characters with artificially short
+  (1ms) timing. The scheduler naturally skips these — confirmed in Chunk 3.
+- Always verify API method and property names against the live documentation at
+  `https://developer.textalive.jp/packages/textalive-app-api/modules.html`
+  before using them. Do not assume property names from memory.
+- `IPhrase` boundaries may not always feel like natural "lines" for every song.
+  Verify phrase lengths look reasonable during Chunk 5 testing. If a phrase is
+  very short (1–2 characters), consider grouping adjacent phrases — but only if
+  the API data justifies it.

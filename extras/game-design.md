@@ -1,12 +1,24 @@
 # Rhythm Lyric Game — Design Summary
 
-A web-based rhythm game built with the TextAlive App API for the Hatsune Miku "Magical Mirai 2026" Programming Contest. The player presses directional arrow buttons in time with the beat while karaoke-style lyrics scroll on screen. A singer character reacts to the player's performance.
+A web-based rhythm game built with the TextAlive App API for the Hatsune Miku
+"Magical Mirai 2026" Programming Contest. The player presses directional arrow
+buttons in time with the beat while karaoke-style lyrics display on screen and
+a singer character reacts to the player's performance.
 
 ---
 
 ## Concept
 
-The app is a lyric-driven rhythm game. As a designated contest song plays, lyrics scroll across the screen and light up character by character in karaoke style. On each beat that aligns with the start of a new lyric character, a directional arrow cue (↑ ↓ ← →) appears. The player must press the matching arrow key (or tap the matching on-screen button) within a timing window. A singer character animates in response to the player's score and combo.
+As a designated contest song plays, two lines of Japanese lyrics are visible at
+all times. The active (top) line fills with color from left to right in sync
+with a moving playhead, like a real karaoke display. Below each line of lyrics
+sits a horizontal cue bar with arrow icons (↑ ↓ ← →) pre-placed at beat
+positions. A playhead dot slides across the bar from left to right. The color
+fill of the lyrics tracks the playhead exactly — text to the left of the
+playhead is bright teal, text to the right is dim. The player must press the
+matching arrow key (or tap the matching on-screen button) as the playhead passes
+each arrow. A singer character fills the background and reacts to the player's
+combo and score.
 
 ---
 
@@ -27,116 +39,175 @@ The player can choose from the 6 songs designated by the contest:
 
 ### Lyric Display
 
-- Lyrics are displayed phrase by phrase and scroll automatically as the song progresses.
-- Each character lights up (color flip) at the exact moment it is sung, driven by `IChar.startTime` from the TextAlive API.
-- The color flip is per-character, not a smooth gradient fill — simpler to implement and still visually clear.
-- A character that spans multiple beats (common in Japanese) stays lit until its `endTime`. No new arrow cue is spawned for beats that fall within an ongoing character.
+Two phrase rows are visible at all times inside a semi-transparent overlay box:
 
-### Arrow Cues
+- **Top row (active phrase)**: the phrase currently being sung. The text is
+  rendered twice in the same position — a dim layer underneath and a bright teal
+  layer on top. The teal layer is clipped to reveal only the portion to the left
+  of the playhead, using CSS `clip-path: inset(0 X% 0 0)` updated every
+  animation frame. As the playhead moves right, more of the teal text is
+  revealed, creating a smooth incremental color fill that stays perfectly in sync
+  with the bar. No per-character timing is used for the color effect — the
+  playhead position alone drives it.
+- **Bottom row (next phrase)**: the upcoming phrase, displayed dimly so the
+  player can read ahead. Its cue bar is visible but its playhead is not yet
+  active and no color fill is shown.
 
-- On each beat that coincides with the *start* of a new lyric character (within ±100ms), an arrow cue appears overlaid on that character.
-- The arrow direction (↑ ↓ ← →) is randomly assigned at load time during beat-to-character mapping.
-- Only one arrow cue is active at a time per beat.
-- The cue is represented by a single `<div>` that is reused for both the arrow display and the subsequent rating word.
+When the song advances to the next phrase, the top row swaps to what was the
+bottom row (now active), and the bottom row pre-loads the phrase after that.
+The swap is instantaneous — a CSS class toggle, no scroll animation.
+
+Note: `IChar` timing data is still used by the scheduler to avoid placing arrow
+cues mid-character on held notes. It is not used for the visual color fill.
+
+### Cue Bars
+
+Below each phrase row sits a horizontal cue bar. For the active phrase:
+
+- Arrow cues (↑ ↓ ← →) are pre-placed at fixed horizontal positions along the
+  bar, calculated at load time as a percentage of the phrase's total duration.
+  All arrows for the phrase are visible at once so the player can see what is
+  coming.
+- A playhead dot slides from left (phrase start) to right (phrase end) on every
+  animation frame, driven by the current playback position.
+- The arrow direction for each beat is randomly assigned at load time.
+
+For the next phrase row the cue bar is rendered identically but dimmed — the
+player can preview upcoming arrows.
+
+### Beat-to-Phrase Mapping
+
+At load time (`onVideoReady`), a schedule is built by walking the beat list and
+the character list together:
+
+- A beat receives an arrow cue only if a character **starts** within ±100ms of
+  that beat timestamp.
+- Beats that fall within the duration of an ongoing character (between its
+  `startTime` and `endTime`) are skipped — no cue is generated.
+- This ensures no two cues share the same character and no cue appears
+  mid-character on a held note.
+
+Each cue entry records: `beatTime`, `phraseIndex`, `barPosition` (0–100%
+along the bar), `direction`, and `resolved` state.
 
 ### Input
 
 - **Keyboard**: arrow keys (↑ ↓ ← →)
-- **Touch / mouse**: four large tap zones on screen arranged as a directional pad, suitable for both mobile and desktop pointer input
+- **Touch / mouse**: four large tap zones at the bottom of the screen
 
 ### Timing Windows and Ratings
 
-Each arrow cue has a hit window of ±250ms around the beat timestamp. Within that window, the player's timing is rated:
+Each arrow cue has a hit window of ±250ms around the beat timestamp:
 
-| Rating  | Timing window (correct direction) | Combo effect | Display color |
-|---------|-----------------------------------|--------------|---------------|
-| Perfect | within ±50ms  | +1 combo     | Blue          |
-| Great   | within ±100ms | +1 combo     | Green          |
-| Good    | within ±150ms | +1 combo     | Yellow         |
-| Bad     | within ±250ms | reset to 0   | Purple          |
-| Miss    | no press, or wrong direction      | reset to 0   | Red           |
+| Rating  | Condition                              | Combo effect | Color  |
+|---------|----------------------------------------|--------------|--------|
+| Perfect | correct direction, within ±50ms        | +1 combo     | Blue   |
+| Great   | correct direction, within ±100ms       | +1 combo     | Green   |
+| Good    | correct direction, within ±150ms       | +1 combo     | Yellow  |
+| Bad     | correct direction, within ±250ms       | reset to 0   | Purple   |
+| Miss    | wrong direction, or no press in window | reset to 0   | Red    |
 
-- A press with the **wrong direction** is ignored by the scoring system. The miss timeout fires naturally when the window expires.
-- A **stray press** (no active cue) is ignored entirely and does not affect score or combo.
+- A **wrong-direction press** is ignored entirely. The miss timeout fires
+  naturally when the window expires and resolves the cue as Miss.
+- A **stray press** (no active cue) is ignored and does not affect score or combo.
 
 ### Rating Word Display
 
-- When a cue resolves (either by a player press or by the miss timeout expiring), the arrow character in the cue `<div>` is replaced by the rating word (e.g. "Perfect", "Miss").
-- The rating word floats upward and fades out over approximately 600ms using a CSS keyframe animation.
-- On a Miss (no press), the arrow is replaced by "Miss" using the same animation.
-- The miss timeout fires at ±250ms + 50ms buffer to ensure it feels conclusive rather than cut off.
+When a cue resolves (player press or miss timeout), the arrow icon in the cue
+`<div>` is replaced by the rating word ("Perfect", "Great", etc.) in the
+matching color. The rating word floats upward and fades out over ~600ms via a
+CSS keyframe animation. The miss timeout fires at 250ms + 50ms buffer so the
+resolution feels conclusive rather than cut off.
 
 ### Scoring
 
-- Each rating awards points (exact values to be tuned during implementation):
-  - Perfect: 300 pts
-  - Great: 200 pts
-  - Good: 100 pts
-  - Bad: 50 pts
-  - Miss: 0 pts
-- A combo multiplier applies to Perfect and Great ratings.
-- Score and current combo are displayed on screen at all times.
+| Rating  | Points |
+|---------|--------|
+| Perfect | 300    |
+| Great   | 200    |
+| Good    | 100    |
+| Bad     | 50     |
+| Miss    | 0      |
+
+A combo multiplier applies to Perfect and Great. Score and current combo are
+displayed in the HUD at all times.
 
 ---
 
 ## Singer Character
 
-A character sprite (hand-drawn, not AI-generated, per contest rules) is displayed on screen and reacts to the player's performance.
+A hand-drawn character sprite (not AI-generated, per contest rules) fills the
+background of the stage area and reacts to the player's performance.
 
 ### States
 
-| State | Trigger condition |
-|-------|------------------|
-| Idle  | Before song starts, or between phrases |
-| Happy | Combo ≥ 10, or on a Perfect hit |
-| Great | Combo ≥ 5 |
-| Sad   | On a Miss or Bad, or combo = 0 |
-| Fail  | Combo broken after a long streak (optional, can be merged with Sad) |
+| State | Trigger condition                         |
+|-------|-------------------------------------------|
+| Idle  | Before song starts                        |
+| Happy | Last rating was Perfect, or combo ≥ 10    |
+| Singing | Combo ≥ 5 and < 10                        |
+| Sad   | Last rating was Miss or Bad, or combo = 0 |
 
 ### Implementation
 
-- 3–5 static illustration states as image files (PNG or SVG).
-- State swaps are driven by CSS class changes on a single `<img>` element.
-- A brief CSS transition (scale bounce or opacity fade) plays on every state change.
-- **Important**: all character art must be either drawn by the developer or used with explicit permission from the original artist. AI-generated images are prohibited by the contest rules.
+- 3–5 static illustration states as PNG or SVG files.
+- The singer `<img>` is `position: absolute`, fills the stage zone behind the
+  overlay box, and uses `object-fit: cover` / `object-position: center top` so
+  the singer's face and upper body are always visible above the overlay.
+- State swaps are `img.src` changes triggered by the `scoreupdate` event.
+- A brief CSS scale bounce animation plays on every state change.
+- The semi-transparent lyric overlay sits on top via `z-index`. The singer is
+  visible through and above the overlay at all times.
+- **All character art must be drawn by the developer or used with explicit
+  artist permission. AI-generated images are prohibited by the contest rules.**
 
 ---
 
 ## UI Layout
 
 ```
-┌─────────────────────────────────────────┐
-│  Song title            Score   Combo    │
-│                                         │
-│  ┌───────────┐                          │
-│  │  Singer   │   ← → ↑ ↓  (cue area)  │
-│  │  sprite   │                          │
-│  └───────────┘                          │
-│                                         │
-│  ┌─────────────────────────────────────┐│
-│  │   Lyric scroll area                 ││
-│  │   (characters light up as sung)     ││
-│  └─────────────────────────────────────┘│
-│                                         │
-│  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐  │
-│  │  ←   │ │  ↓   │ │  ↑   │ │  →   │  │
-│  └──────┘ └──────┘ └──────┘ └──────┘  │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│  HUD: song title         Score    Combo  8% │
+├─────────────────────────────────────────────┤
+│                                             │
+│  [Singer sprite — large, fills background]  │
+│                                        92%  │
+│  ┌─────────────────────────────────────┐    │
+│  │  semi-transparent overlay      ~55% │    │
+│  │                                     │    │
+│  │  「active phrase text」             │    │
+│  │   teal fill tracks the playhead     │    │
+│  │  ↑    →       ↓        ↑           │    │
+│  │  ────●──────────────────────────── │    │  ← playhead moves right
+│  │                                     │    │
+│  │  「next phrase text」  (dim)        │    │
+│  │  →       ↑   ↓             →      │    │
+│  │  ──────────────────────────────── │    │  ← static (not yet active)
+│  └─────────────────────────────────────┘    │
+│                                             │
+│  ┌──────┐  ┌──────┐  ┌──────┐  ┌──────┐   │
+│  │  ←   │  │  ↓   │  │  ↑   │  │  →   │   │  22%
+│  └──────┘  └──────┘  └──────┘  └──────┘   │
+└─────────────────────────────────────────────┘
 ```
 
-- The four touch buttons at the bottom are large tap targets, suitable for mobile.
-- The lyric area auto-scrolls to keep the current phrase visible.
-- The singer sprite and cue area share the upper portion of the screen.
-- On desktop, keyboard arrow keys are the primary input; buttons remain visible as reference.
+- The singer sprite fills the background; the overlay covers the lower portion
+  so the singer's face is always visible above it.
+- The four touch buttons at the bottom are large tap targets (min 80×80px),
+  always visible and outside the overlay.
+- On desktop, keyboard arrow keys are the primary input; buttons serve as
+  visual reference.
+- No scrolling — the two-row phrase display is always at the same fixed
+  position on screen.
 
 ---
 
 ## Technical Constraints
 
-- Static application only — no server-side code. Runs by placing files on an HTTP server.
+- Static application only — no server-side code.
 - Built with Vite + TypeScript, compiled to static HTML/CSS/JS.
 - Deployed to GitHub Pages via GitHub Actions.
-- Uses the TextAlive App API (loaded via npm package `textalive-app-api`).
-- No AI-generated assets (images, text, music) in the output.
+- Uses the TextAlive App API (`textalive-app-api` npm package).
+- No AI-generated assets (images, text, music).
 - Source code must be readable — no obfuscation.
 - Repository must remain private until judging is complete.

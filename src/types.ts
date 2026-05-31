@@ -99,10 +99,10 @@ export interface ScoreState {
  *
  *   idle  — Before the song starts, or when no phrase is active.
  *   happy — Triggered by a Perfect hit or a combo of 10 or more.
- *   great — Active while combo is between 5 and 9 (inclusive).
+ *   singing — Active while combo is between 5 and 9 (inclusive).
  *   sad   — Triggered by a Miss or Bad rating, or when combo drops to 0.
  *
  * State transitions are handled by singer.ts and applied by swapping the
  * <img> src attribute in main.ts.
  */
-export type SingerState = "idle" | "happy" | "great" | "sad";
+export type SingerState = "idle" | "happy" | "singing" | "sad";
