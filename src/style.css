@@ -137,7 +137,7 @@ body {
 }
 
 .phrase-row.active { opacity: 1; }
-.phrase-row.next   { opacity: 0.4; }
+.phrase-row.next   { opacity: 0.7; }
 
 /* ─── Phrase text wrap ───────────────────────────────────────────────────────
    position: relative creates the stacking context for the two overlapping text
@@ -154,7 +154,7 @@ body {
 
 /* Dim base layer — always fully visible, acts as the "unsung" text colour.    */
 .phrase-dim {
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 /* Teal fill layer — absolutely overlaps the dim layer at the same position.

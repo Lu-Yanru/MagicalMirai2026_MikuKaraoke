@@ -208,19 +208,19 @@ x 11. Confirm the "こたえて" chorus 1ms-timing characters are naturally skip
 
 ---
 
-### ✅ Chunk 4 — HTML layout and static UI shell
-
+### Chunk 4 — HTML layout and static UI shell
+ 
 **Goal**: The full UI layout is visible with placeholder content. Singer fills
 the background. The overlay box with two phrase rows and the input pad are all
 in their correct positions. No game logic yet.
-
+ 
 **Success criterion**: The page looks correct on both desktop and a 375px mobile
 viewport. The singer image is visible above the overlay. The two phrase-row
 slots, two cue bar tracks, and four arrow buttons are all present and correctly
 positioned.
-
+ 
 #### Steps
-
+ 
 x 1. Update `index.html` with the full HTML structure:
      - `#hud` — top bar with `#song-title`, `#score`, `#combo`
      - `#stage` — full-height container, `position: relative`
@@ -234,8 +234,8 @@ x 1. Update `index.html` with the full HTML structure:
            - `#phrase-bottom-text`
            - `#bar-bottom`
      - `#input-pad` — four directional buttons outside and below the overlay
-
-x 2. In `src/style.css`, implement the layout. The page fills `100vh` with no
+ 
+2. In `src/style.css`, implement the layout. The page fills `100vh` with no
    overflow. Suggested proportions:
    - `#hud`: ~8% height, flexbox row, space-between
    - `#stage`: remaining height (~92%), `position: relative`, `overflow: hidden`
@@ -246,43 +246,36 @@ x 2. In `src/style.css`, implement the layout. The page fills `100vh` with no
      `backdrop-filter: blur(2px)`, `z-index: 1`, padding `1rem`
    - `#input-pad`: `position: absolute`, bottom of `#stage` or below it,
      four buttons minimum 80×80px, `z-index: 2`
-
-x 3. Style `.phrase-row`: flex column, gap between text and bar track. Style
+3. Style `.phrase-row`: flex column, gap between text and bar track. Style
    `.phrase-row.next`: `opacity: 0.4`. Style `.phrase-row.active`: full opacity.
-
-x 4. Style `.bar-track`: `position: relative`, `height: 32px`,
+4. Style `.bar-track`: `position: relative`, `height: 32px`,
    `background: rgba(255,255,255,0.15)`, `border-radius: 16px`, full width.
    This is the track the playhead and cues sit on.
-
 5. Add a placeholder singer image (a solid colored rectangle is fine) as `#singer`.
-
-x 6. Add placeholder text in `#phrase-top-text` and `#phrase-bottom-text` using
+6. Add placeholder text in `#phrase-top-text` and `#phrase-bottom-text` using
    two stacked `<div>` elements each: a dim base layer and a teal colored layer
    on top (both containing the same sample Japanese text). Set the colored layer
    to `clip-path: inset(0 40% 0 0)` to preview the partial fill effect.
-
-x 7. Add a placeholder `.playhead` div inside `#bar-top` at `left: 60%` and a
+7. Add a placeholder `.playhead` div inside `#bar-top` at `left: 60%` and a
    few placeholder `.cue` divs at various positions to preview bar layout.
-
-x 8. Test on desktop and simulate 375px in DevTools. Adjust until no overflow
+8. Test on desktop and simulate 375px in DevTools. Adjust until no overflow
    and all elements are visible and correctly sized.
-
 ---
-
+ 
 ### Chunk 5 — Lyric rendering, phrase display, and clip-path color fill
-
+ 
 **Goal**: Real lyrics render in the two phrase rows. The active phrase fills
 with teal color from left to right in perfect sync with the playhead. The rows
 swap correctly as the song progresses.
-
+ 
 **Success criterion**: Play the song. The top row shows the current phrase with
 teal color filling smoothly from left to right as the playhead moves. The bottom
 row shows the next phrase dimly with no fill. When the phrase ends, rows swap
 instantly and the next phrase pre-loads. The color fill and the playhead dot
 are always at the same horizontal position.
-
+ 
 #### Steps
-
+ 
 1. Create `src/ui/lyrics.ts` exporting:
    - `initLyrics(phraseRows: PhraseRow[]): void` — builds DOM for all phrases
      upfront and stores element references on each `PhraseRow`
@@ -290,7 +283,6 @@ are always at the same horizontal position.
      — inserts a phrase row into the correct slot
    - `updateLyrics(activeRow: PhraseRow, position: number): void` — called each
      animation frame; updates `clip-path` on the colored text layer
-
 2. In `initLyrics`, for each `PhraseRow`:
    - Create a `<div class="phrase-row">` and store it on `row.element`.
    - Inside, create a text container `<div class="phrase-text-wrap">` with
@@ -306,7 +298,6 @@ are always at the same horizontal position.
      `entry.element`. Add a `<div class="playhead">` and store it on
      `row.playheadElement`.
    - Do **not** append phrase rows to the DOM yet — they are activated on demand.
-
 3. In `updateLyrics`, compute progress and update the clip:
    ```ts
    export function updateLyrics(activeRow: PhraseRow, position: number): void {
@@ -320,21 +311,22 @@ are always at the same horizontal position.
    }
    ```
    This is the only DOM update needed per frame for lyrics — one CSS property.
-
 4. In `main.ts`, after `buildSchedule`, call `initLyrics(phraseRows)`. Maintain
-   two index variables: `activeIndex` (top row) and `nextIndex` (bottom row).
-   Call `activatePhrase` for index 0 (top slot) and index 1 (bottom slot)
-   immediately after `onVideoReady`.
-
-5. In the `requestAnimationFrame` loop, call `updateLyrics` for the active row,
-   then check for phrase advance:
+   two index variables (`activeIndex`, `nextIndex`) and a boolean `activeIsTop`
+   that tracks which physical slot (top or bottom) is currently the active one.
+   On init: place index 0 in the top slot (active), index 1 in the bottom slot
+   (next), set `activeIsTop = true`.
+5. In the `requestAnimationFrame` loop, call `updateLyrics` for the active row
+   and update its playhead position. Then check for phrase advance:
    - If `player.timer.position >= phraseRows[nextIndex].phrase.startTime`:
      - Increment both indices.
-     - Swap DOM: move current active row out, current next row into top slot.
-     - Call `activatePhrase` for the new `nextIndex` row into the bottom slot.
+     - Flip `activeIsTop`. The slot that was "next" becomes "active"; the slot
+       that was "active" becomes the new "next" preload slot.
+     - Call `activatePhrase` with the new `activeIsTop` to promote the next row.
      - Reset the newly-active row's `coloredLayer.style.clipPath` to
-       `inset(0 100% 0 0)` to ensure a clean fill start with no leftover state.
-
+       `inset(0 100% 0 0)` to ensure a clean fill start.
+     - Call `activatePhrase` with `!activeIsTop` to load the phrase after that
+       into the now-free slot (dimmed). If no more phrases, clear that slot.
 6. Add CSS for the two text layers:
    ```css
    .phrase-text-wrap {
@@ -371,7 +363,7 @@ are always at the same horizontal position.
      pointer-events: none;
    }
    ```
-
+ 
 7. Test: play the song. Verify the teal fill and the playhead dot always sit at
    exactly the same horizontal position. Verify the bottom row is fully dim with
    no fill. Verify the phrase swap resets the fill cleanly with no leftover teal
@@ -391,7 +383,7 @@ floats up and fades. No miss fires during the next (dim) phrase.
 
 #### Steps
 
-1. In the `requestAnimationFrame` loop in `main.ts`, update the playhead
+x 1. In the `requestAnimationFrame` loop in `main.ts`, update the playhead
    position each frame for the active phrase:
    ```ts
    const phrase = phraseRows[activeIndex].phrase;
@@ -589,15 +581,15 @@ expression visibly. Results are shown at song end. Works on mobile and desktop.
 | 1 — Scaffold               | ✅ Complete  | —               |
 | 2 — Player init            | ✅ Complete  | —               |
 | 3 — Scheduler              | ✅ Complete  | —               |
-| 4 — UI layout              | 🔄 In progress (step 1 done) | ~1 day remaining |
-| 5 — Lyric rendering        | Not started | 2 days          |
+| 4 — UI layout              | ✅ Complete | 2 days |
+| 5 — Lyric rendering        | 🔄 In progress | 2 days          |
 | 6 — Playhead + miss        | Not started | 2 days          |
 | 7 — Input + scoring        | Not started | 2–3 days        |
 | 8 — Singer + polish        | Not started | 3–4 days        |
 | Singer art (parallel)      | Not started | 1 week          |
 | Buffer / bug fixing        | —           | 3–4 days        |
 
-**Remaining: ~2.5–3 weeks of focused part-time work.**
+**~4 weeks of focused part-time work.**
 
 Start singer art immediately in parallel — it is the only deliverable that
 cannot be accelerated with code and is the biggest scheduling wildcard.

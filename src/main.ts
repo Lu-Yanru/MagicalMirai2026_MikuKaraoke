@@ -11,10 +11,40 @@
 
 import { Player, type IPlayerApp, type IVideo } from "textalive-app-api";
 import { buildSchedule } from "./game/scheduler";
-import type { CueEntry } from "./types";
+import { initLyrics, activatePhrase, updateLyrics } from "./ui/lyrics";
+import type { PhraseRow } from "./types";
 
-// Cue schedule built in onVideoReady; consumed by the game loop and scoring.
-let scheduledCues: CueEntry[] = [];
+// ─── DOM references ───────────────────────────────────────────────────────────
+//
+// Grabbed once at module load time. All getElementById calls are safe here
+// because this script is type="module" (deferred) — the DOM is fully parsed
+// before any line of this file runs.
+//
+// #phrase-top and #phrase-bottom are the two fixed slots in #lyric-overlay.
+// activatePhrase() swaps phrase row elements in and out of these slots.
+const phraseTopSlot    = document.getElementById("phrase-top")    as HTMLElement;
+const phraseBottomSlot = document.getElementById("phrase-bottom") as HTMLElement;
+const btnPlay          = document.getElementById("btn-play")      as HTMLButtonElement;
+
+// ─── Game state ───────────────────────────────────────────────────────────────
+
+// Full ordered list of PhraseRows built by buildSchedule() in onVideoReady.
+// Each row wraps one IPhrase with its pre-calculated CueEntry[].
+let phraseRows: PhraseRow[] = [];
+
+// Indices into phraseRows for the two visible slots.
+//   activeIndex — the phrase currently being sung (top slot, full opacity).
+//   nextIndex   — the upcoming phrase (bottom slot, dimmed).
+// Both are advanced together when the song moves to the next phrase (Chunk 5).
+let activeIndex = 0;
+let nextIndex   = 1;
+
+// True while the player is seeking (scrubbing). The rAF loop skips lyric
+// updates during a seek to avoid showing a half-filled clip-path on a
+// position that is about to change again. Cleared by onVideoSeekEnd.
+// Required when using player.timer.position — see:
+// https://developer.textalive.jp/packages/textalive-app-api/interfaces/Timer.html#position
+let isSeeking = false;
 
 // ─── Player instantiation ─────────────────────────────────────────────────────
 //
@@ -28,7 +58,7 @@ let scheduledCues: CueEntry[] = [];
 //   - attempt to connect to an app host if one is available.
 //
 // VITE_TEXTALIVE_TOKEN is injected at build time by Vite from the environment.
-// In local development it comes from a .env file or a Codespace secret.
+// In local development it comes from a .env.local file or a Codespace secret.
 // In CI it comes from the VITE_TEXTALIVE_TOKEN GitHub Actions secret.
 // The token is never committed to the repository.
 //
@@ -61,10 +91,11 @@ player.addListener({
   onAppReady(app: IPlayerApp) {
     if (!app.managed) {
       // Load one of the six designated contest songs.
-
-      // こたえて / imie (Grand Prize)
-      // Note: chorus characters in paragraph 3 have 1 ms timing — see the
-      // design doc and the chorus timings JSON linked from the support page.
+      // The versioned piapro URLs and revision IDs below must be copied exactly
+      // from the contest support page:
+      //   https://developer.textalive.jp/events/magicalmirai2026/
+      //
+      // こたえて / imie
       player.createFromSongUrl("https://piapro.jp/t/6W2N/20251215164617", {
         video: {
           // 音楽地図訂正履歴
@@ -86,7 +117,7 @@ player.addListener({
       //     beatId: 4827294,
       //     chordId: 2963755,
       //     repetitiveSegmentId: 3086262,
-      
+      // 
       //     // 歌詞URL: https://piapro.jp/t/EVO2
       //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FzoqO%2F20251214200738
       //     lyricId: 126591,
@@ -167,49 +198,81 @@ player.addListener({
   // The IVideo parameter `v` is the same object as player.video.
   // IVideo docs: https://developer.textalive.jp/packages/textalive-app-api/interfaces/IVideo.html
   onVideoReady(_v: IVideo) {
-    // Log beat count using the beats array on the song map.
-    // ISongMap.beats: IBeat[] — confirmed at:
-    // https://developer.textalive.jp/packages/textalive-app-api/interfaces/ISongMap.html
+    // Chunk 2 Step 4: Log beat and character counts to verify data is loaded.
     const beatCount = player.data.songMap.beats.length;
-
-    // Walk the IChar linked list to count characters.
-    // IChar.next is typed as IChar (not IRenderingUnit) — confirmed at:
-    // https://developer.textalive.jp/packages/textalive-app-api/interfaces/IChar.html
     let charCount = 0;
-    let char = player.video.firstChar;
-    while (char) {
-      charCount++;
-      char = char.next;
-    }
-
+    let c = player.video.firstChar;
+    while (c) { charCount++; c = c.next; }
     console.log(`beats: ${beatCount}, chars: ${charCount}`);
 
-    // Chunk 3 Step 6: Build the cue schedule and log it for manual verification.
-    // Each entry shows the beat timestamp, the matched character text, and the
-    // randomly assigned direction.
-    scheduledCues = buildSchedule(player);
+    // Chunk 3: Build the cue schedule grouped by phrase.
+    phraseRows = buildSchedule(player);
     console.log(
       "schedule:",
-      scheduledCues.map((e) => ({
-        beatTime: e.beatTime,
-        char: e.char.text,
-        direction: e.direction,
+      phraseRows.map((row) => ({
+        phrase: row.phrase.text,
+        startTime: row.phrase.startTime,
+        cues: row.cues.map((cue) => ({
+          beatTime: cue.beatTime,
+          char: cue.char.text,
+          barPosition: Math.round(cue.barPosition),
+          direction: cue.direction,
+        })),
       }))
     );
 
-    // TODO (Chunk 5):        Call buildLyricDOM(player, container).
+    // Chunk 5 Step 4: Build all phrase row DOM elements upfront.
+    // initLyrics creates the <div> tree for every phrase row and stores
+    // element references on each PhraseRow — but does not insert anything
+    // into the live document yet.
+    initLyrics(phraseRows);
+
+    // Activate the first two phrase rows immediately so lyrics are visible
+    // as soon as the song is ready to play.
+    // Guard against songs with fewer than 2 phrases (edge case).
+    activeIndex = 0;
+    nextIndex   = 1;
+
+    if (phraseRows.length > 0) {
+      // Row 0 → top slot (active, full opacity).
+      activatePhrase(phraseRows[activeIndex], phraseTopSlot, phraseBottomSlot, true);
+    }
+    if (phraseRows.length > 1) {
+      // Row 1 → bottom slot (next, dimmed).
+      activatePhrase(phraseRows[nextIndex], phraseTopSlot, phraseBottomSlot, false);
+    }
+
+    // TODO (Chunk 5 Step 5): Start requestAnimationFrame render loop.
   },
+});
+
+// ─── onAppMediaChange listener ────────────────────────────────────────────────
+//
+// Called when the song URL is changed by the TextAlive host (e.g. the editor
+// switches tracks). Logging here confirms the full app lifecycle is wired:
+// onAppReady → song loads → onVideoReady → onAppMediaChange on track switch.
+//
+// onAppMediaChange is on PlayerAppListener — confirmed at:
+// https://developer.textalive.jp/packages/textalive-app-api/interfaces/PlayerAppListener.html
+player.addListener({
+  onAppMediaChange(songUrl: string) {
+    console.log("media changed:", songUrl);
+  },
+
+  // Pause lyric updates while the player is scrubbing to a new position.
+  // Without this, clip-path and playhead values flicker on stale positions.
+  onVideoSeekStart() { isSeeking = true;  },
+  onVideoSeekEnd()   { isSeeking = false; },
 });
 
 // ─── Temporary playback control (Chunk 2) ────────────────────────────────────
 //
 // Browsers block autoplay, so song loading can only be triggered by a user
 // gesture. This button provides that gesture for testing purposes.
-// It will be removed when the full UI layout is built in Chunk 4.
+// It will be replaced by the start screen in Chunk 8.
 //
 // player.isPlaying is a boolean accessor on IPlayer — confirmed at:
 // https://developer.textalive.jp/packages/textalive-app-api/interfaces/IPlayer.html
-const btnPlay = document.getElementById("btn-play") as HTMLButtonElement;
 btnPlay.addEventListener("click", () => {
   if (player.isPlaying) {
     player.requestPause();
@@ -218,24 +281,87 @@ btnPlay.addEventListener("click", () => {
   }
 });
 
-// ─── onAppMediaChange listener (Chunk 2 Step 7) ──────────────────────────────
+// ─── Render loop ──────────────────────────────────────────────────────────────
 //
-// Called when the song URL is changed by the TextAlive host (e.g. the editor
-// switches tracks). Logging here confirms the full app lifecycle is wired:
-// onAppReady → song loads → onVideoReady → onAppMediaChange on track switch.
+// requestAnimationFrame fires at the display refresh rate (typically 60fps).
+// Each frame we:
+//   1. Read the current playback position from player.timer.position — the most
+//      precise position source per the Timer docs.
+//   2. Update the teal color fill on the active phrase row (one CSS property).
+//   3. Check whether the song has advanced past the next phrase's startTime and,
+//      if so, swap the rows and pre-load the phrase after that.
 //
-// songUrl is the new song URL. videoPromise resolves to the new IVideo once
-// loading completes (same as the next onVideoReady call).
-//
-// onAppMediaChange is on PlayerAppListener — confirmed at:
-// https://developer.textalive.jp/packages/textalive-app-api/interfaces/PlayerAppListener.html
-player.addListener({
-  onAppMediaChange(songUrl: string) {
-    console.log("media changed:", songUrl);
-  },
-});
+// The loop runs unconditionally — it only does meaningful work when phraseRows
+// is populated (after onVideoReady) and when the player is playing.
+function tick(): void {
+  requestAnimationFrame(tick);
 
-// TODO (Chunk 4):        Mount HTML layout
-// TODO (Chunk 5):        Start requestAnimationFrame render loop
+  // Nothing to render until the schedule has been built.
+  if (phraseRows.length === 0) return;
+
+  // Skip updates mid-seek — position values are unstable during scrubbing.
+  if (isSeeking) return;
+
+  const position = player.timer.position;
+  const activeRow = phraseRows[activeIndex];
+
+  // 1. Update the teal clip-path fill for the active phrase.
+  updateLyrics(activeRow, position);
+
+  // Update the playhead dot position on the active bar.
+  // Mirrors the same progress calculation used by updateLyrics so the dot
+  // and the teal fill are always at exactly the same horizontal position.
+  const { phrase, playheadElement } = activeRow;
+  if (playheadElement) {
+    const progress = (position - phrase.startTime) / (phrase.endTime - phrase.startTime);
+    const pct = Math.min(Math.max(progress * 100, 0), 100);
+    playheadElement.style.left = `${pct}%`;
+  }
+
+  // 2. Check for phrase advance.
+  // When the playback position reaches or passes the next phrase's startTime,
+  // promote the next row to active and pre-load the phrase after it.
+  if (
+    nextIndex < phraseRows.length &&
+    position >= phraseRows[nextIndex].phrase.startTime
+  ) {
+    activeIndex = nextIndex;
+    nextIndex   = activeIndex + 1;
+
+    // Promote the new active row into the top slot.
+    activatePhrase(
+      phraseRows[activeIndex],
+      phraseTopSlot,
+      phraseBottomSlot,
+      true
+    );
+
+    // Reset the clip-path on the newly-active row to fully hidden so the fill
+    // starts cleanly from the left with no leftover teal from a previous run.
+    const newActive = phraseRows[activeIndex];
+    if (newActive.coloredLayer) {
+      newActive.coloredLayer.style.clipPath = "inset(0 100% 0 0)";
+    }
+
+    // Pre-load the next phrase into the bottom slot if one exists.
+    if (nextIndex < phraseRows.length) {
+      activatePhrase(
+        phraseRows[nextIndex],
+        phraseTopSlot,
+        phraseBottomSlot,
+        false
+      );
+    } else {
+      // No more phrases — clear the bottom slot.
+      phraseBottomSlot.innerHTML = "";
+    }
+  }
+}
+
+// Kick off the loop. It is self-scheduling via requestAnimationFrame and runs
+// for the lifetime of the page.
+tick();
+
+
 // TODO (Chunk 7):        Wire keyboard and touch input
 // TODO (Chunk 8):        Show start / end screens; update singer sprite

@@ -8,7 +8,7 @@
  * local to this project.
  */
 
-import type { IChar } from "textalive-app-api";
+import type { IChar, IPhrase } from "textalive-app-api";
 
 // ─── Input ────────────────────────────────────────────────────────────────────
 
@@ -70,6 +70,43 @@ export interface CueEntry {
   element: HTMLElement | null;
   timeoutId: number | null;
   resolved: boolean;
+  barPosition: number; // 0–100, left% position on the phrase's cue bar
+}
+
+// ─── Phrase rows ──────────────────────────────────────────────────────────────
+ 
+/**
+ * One display row in the two-row lyric overlay, wrapping an IPhrase together
+ * with all the DOM elements and cue entries that belong to it.
+ *
+ * PhraseRows are built once in initLyrics() (Chunk 5) before playback starts
+ * and then activated/deactivated as the song progresses.
+ *
+ * Fields:
+ *   phrase          — The TextAlive IPhrase object supplying startTime,
+ *                     endTime, and text.
+ *   cues            — All CueEntry objects whose beatTime falls within this
+ *                     phrase's time range. Built by scheduler.ts.
+ *   element         — The <div class="phrase-row"> container. null until
+ *                     initLyrics() creates it; set to null again if the row
+ *                     is ever removed from the DOM.
+ *   coloredLayer    — The teal <div class="phrase-colored"> whose clip-path
+ *                     is updated every frame by updateLyrics(). null until
+ *                     initLyrics() creates it.
+ *   playheadElement — The <div class="playhead"> that slides across the bar.
+ *                     null until initLyrics() creates it.
+ *
+ * IPhrase docs:
+ *   https://developer.textalive.jp/packages/textalive-app-api/interfaces/IPhrase.html
+ * Note: IPhrase.next is typed as IPhrase (narrows from IRenderingUnit),
+ *   so walking the phrase linked list requires no cast.
+ */
+export interface PhraseRow {
+  phrase: IPhrase;
+  cues: CueEntry[];
+  element: HTMLElement | null;
+  coloredLayer: HTMLElement | null;
+  playheadElement: HTMLElement | null;
 }
 
 // ─── Score state ──────────────────────────────────────────────────────────────
