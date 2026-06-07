@@ -33,8 +33,8 @@ const btnPlay          = document.getElementById("btn-play")      as HTMLButtonE
 let phraseRows: PhraseRow[] = [];
 
 // Indices into phraseRows for the two visible slots.
-//   activeIndex — the phrase currently being sung (top slot, full opacity).
-//   nextIndex   — the upcoming phrase (bottom slot, dimmed).
+//   activeIndex — the phrase currently being sung (full opacity).
+//   nextIndex   — the upcoming phrase (dimmed).
 // Both are advanced together when the song moves to the next phrase (Chunk 5).
 let activeIndex = 0;
 let nextIndex   = 1;
@@ -275,11 +275,6 @@ player.addListener({
   onAppMediaChange(songUrl: string) {
     console.log("media changed:", songUrl);
   },
-
-  // Pause lyric updates while the player is scrubbing to a new position.
-  // Without this, clip-path and playhead values flicker on stale positions.
-  onVideoSeekStart() { isSeeking = true;  },
-  onVideoSeekEnd()   { isSeeking = false; },
 });
 
 // ─── Temporary playback control (Chunk 2) ────────────────────────────────────

@@ -137,7 +137,7 @@ body {
 }
 
 .phrase-row.active { opacity: 1; }
-.phrase-row.next   { opacity: 0.7; }
+.phrase-row.next   { opacity: 0.6; }
 
 /* ─── Phrase text wrap ───────────────────────────────────────────────────────
    position: relative creates the stacking context for the two overlapping text

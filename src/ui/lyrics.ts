@@ -172,7 +172,7 @@ export function activatePhrase(
  * No CSS transition is set on .phrase-colored — a transition would introduce
  * lag between the teal fill and the playhead dot, breaking the sync.
  *
- * @param activeRow — The currently active PhraseRow (top slot).
+ * @param activeRow — The currently active PhraseRow.
  * @param position  — Current playback position in milliseconds
  *                    (player.timer.position).
  */
