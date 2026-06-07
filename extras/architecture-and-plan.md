@@ -322,18 +322,22 @@ x 3. In `updateLyrics`, compute progress and update the clip:
    This is the only DOM update needed per frame for lyrics — one CSS property.
 
 x 4. In `main.ts`, after `buildSchedule`, call `initLyrics(phraseRows)`. Maintain
-   two index variables: `activeIndex` (top row) and `nextIndex` (bottom row).
-   Call `activatePhrase` for index 0 (top slot) and index 1 (bottom slot)
-   immediately after `onVideoReady`.
+   two index variables (`activeIndex`, `nextIndex`) and a boolean `activeIsTop`
+   that tracks which physical slot (top or bottom) is currently the active one.
+   On init: place index 0 in the top slot (active), index 1 in the bottom slot
+   (next), set `activeIsTop = true`.
 
-x 5. In the `requestAnimationFrame` loop, call `updateLyrics` for the active row,
-   then check for phrase advance:
+x 5. In the `requestAnimationFrame` loop, call `updateLyrics` for the active row
+   and update its playhead position. Then check for phrase advance:
    - If `player.timer.position >= phraseRows[nextIndex].phrase.startTime`:
      - Increment both indices.
-     - Swap DOM: move current active row out, current next row into top slot.
-     - Call `activatePhrase` for the new `nextIndex` row into the bottom slot.
+     - Flip `activeIsTop`. The slot that was "next" becomes "active"; the slot
+       that was "active" becomes the new "next" preload slot.
+     - Call `activatePhrase` with the new `activeIsTop` to promote the next row.
      - Reset the newly-active row's `coloredLayer.style.clipPath` to
-       `inset(0 100% 0 0)` to ensure a clean fill start with no leftover state.
+       `inset(0 100% 0 0)` to ensure a clean fill start.
+     - Call `activatePhrase` with `!activeIsTop` to load the phrase after that
+       into the now-free slot (dimmed). If no more phrases, clear that slot.
 
 x 6. Add CSS for the two text layers:
    ```css

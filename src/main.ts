@@ -39,6 +39,15 @@ let phraseRows: PhraseRow[] = [];
 let activeIndex = 0;
 let nextIndex   = 1;
 
+// Which physical slot currently holds the active phrase.
+//   true  → active phrase is in phraseTopSlot
+//   false → active phrase is in phraseBottomSlot
+//
+// This flag flips on every phrase advance so the active row alternates between
+// top and bottom. The slot that just finished becomes the preload slot for the
+// phrase after next.
+let activeIsTop = true;
+
 // True while the player is seeking (scrubbing). The rAF loop skips lyric
 // updates during a seek to avoid showing a half-filled clip-path on a
 // position that is about to change again. Cleared by onVideoSeekEnd.
@@ -96,34 +105,34 @@ player.addListener({
       //   https://developer.textalive.jp/events/magicalmirai2026/
       //
       // こたえて / imie
-      player.createFromSongUrl("https://piapro.jp/t/6W2N/20251215164617", {
-        video: {
-          // 音楽地図訂正履歴
-          beatId: 4827293,
-          chordId: 2963754,
-          repetitiveSegmentId: 3086261,
-      
-          // 歌詞URL: https://piapro.jp/t/9o24
-          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2F6W2N%2F20251215164617
-          lyricId: 126519,
-          lyricDiffId: 28645
-        },
-      });
-
-      // アフター・ザ・カーテン / Rulmry
-      // player.createFromSongUrl("https://piapro.jp/t/zoqO/20251214200738", {
+      // player.createFromSongUrl("https://piapro.jp/t/6W2N/20251215164617", {
       //   video: {
       //     // 音楽地図訂正履歴
-      //     beatId: 4827294,
-      //     chordId: 2963755,
-      //     repetitiveSegmentId: 3086262,
-      // 
-      //     // 歌詞URL: https://piapro.jp/t/EVO2
-      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FzoqO%2F20251214200738
-      //     lyricId: 126591,
-      //     lyricDiffId: 28627
+      //     beatId: 4827293,
+      //     chordId: 2963754,
+      //     repetitiveSegmentId: 3086261,
+      
+      //     // 歌詞URL: https://piapro.jp/t/9o24
+      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2F6W2N%2F20251215164617
+      //     lyricId: 126519,
+      //     lyricDiffId: 28645
       //   },
       // });
+
+      // アフター・ザ・カーテン / Rulmry
+      player.createFromSongUrl("https://piapro.jp/t/zoqO/20251214200738", {
+        video: {
+          // 音楽地図訂正履歴
+          beatId: 4827294,
+          chordId: 2963755,
+          repetitiveSegmentId: 3086262,
+      
+          // 歌詞URL: https://piapro.jp/t/EVO2
+          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FzoqO%2F20251214200738
+          lyricId: 126591,
+          lyricDiffId: 28627
+        },
+      });
 
       // シャッターチャンス / 夜未アガリ
       // player.createFromSongUrl("https://piapro.jp/t/PNpQ/20251209170719", {
@@ -232,18 +241,26 @@ player.addListener({
     // Guard against songs with fewer than 2 phrases (edge case).
     activeIndex = 0;
     nextIndex   = 1;
+    activeIsTop = true;
 
     if (phraseRows.length > 0) {
       // Row 0 → top slot (active, full opacity).
-      activatePhrase(phraseRows[activeIndex], phraseTopSlot, phraseBottomSlot, true);
+      activatePhrase(phraseRows[activeIndex], phraseTopSlot, phraseBottomSlot, true, true);
     }
     if (phraseRows.length > 1) {
       // Row 1 → bottom slot (next, dimmed).
-      activatePhrase(phraseRows[nextIndex], phraseTopSlot, phraseBottomSlot, false);
+      activatePhrase(phraseRows[nextIndex], phraseTopSlot, phraseBottomSlot, false, false);
     }
-
-    // TODO (Chunk 5 Step 5): Start requestAnimationFrame render loop.
   },
+
+  // ── Seek event handlers ────────────────────────────────────────────────────
+  // Pause and resume lyric updates around seek operations.
+  // Required when reading player.timer.position in a rAF loop — the Timer
+  // docs state that apps must handle these events to respond correctly to
+  // video seeking.
+  // https://developer.textalive.jp/packages/textalive-app-api/interfaces/Timer.html#position
+  onVideoSeekStart() { isSeeking = true;  },
+  onVideoSeekEnd()   { isSeeking = false; },
 });
 
 // ─── onAppMediaChange listener ────────────────────────────────────────────────
@@ -283,77 +300,86 @@ btnPlay.addEventListener("click", () => {
 
 // ─── Render loop ──────────────────────────────────────────────────────────────
 //
-// requestAnimationFrame fires at the display refresh rate (typically 60fps).
-// Each frame we:
+// requestAnimationFrame fires at the display refresh rate (typically 60 fps).
+// Each frame:
 //   1. Read the current playback position from player.timer.position — the most
 //      precise position source per the Timer docs.
-//   2. Update the teal color fill on the active phrase row (one CSS property).
-//   3. Check whether the song has advanced past the next phrase's startTime and,
-//      if so, swap the rows and pre-load the phrase after that.
+//   2. Update the teal color fill and playhead dot on the active phrase row.
+//   3. Check whether the song has advanced past the next phrase's startTime.
+//      If so, flip which slot is active, promote the next row, and preload the
+//      phrase after that into the newly-freed slot.
 //
-// The loop runs unconditionally — it only does meaningful work when phraseRows
-// is populated (after onVideoReady) and when the player is playing.
+// The active row alternates between phraseTopSlot and phraseBottomSlot on each
+// advance, tracked by activeIsTop. This gives the appearance of an infinite
+// scrolling karaoke display using only two fixed DOM slots.
 function tick(): void {
   requestAnimationFrame(tick);
-
+ 
   // Nothing to render until the schedule has been built.
   if (phraseRows.length === 0) return;
-
+ 
   // Skip updates mid-seek — position values are unstable during scrubbing.
   if (isSeeking) return;
-
-  const position = player.timer.position;
+ 
+  const position  = player.timer.position;
   const activeRow = phraseRows[activeIndex];
-
+ 
   // 1. Update the teal clip-path fill for the active phrase.
   updateLyrics(activeRow, position);
-
-  // Update the playhead dot position on the active bar.
+ 
+  // 2. Update the playhead dot position on the active bar.
   // Mirrors the same progress calculation used by updateLyrics so the dot
   // and the teal fill are always at exactly the same horizontal position.
-  const { phrase, playheadElement } = activeRow;
-  if (playheadElement) {
-    const progress = (position - phrase.startTime) / (phrase.endTime - phrase.startTime);
+  if (activeRow.playheadElement) {
+    const progress =
+      (position - activeRow.phrase.startTime) /
+      (activeRow.phrase.endTime - activeRow.phrase.startTime);
     const pct = Math.min(Math.max(progress * 100, 0), 100);
-    playheadElement.style.left = `${pct}%`;
+    activeRow.playheadElement.style.left = `${pct}%`;
   }
-
-  // 2. Check for phrase advance.
-  // When the playback position reaches or passes the next phrase's startTime,
-  // promote the next row to active and pre-load the phrase after it.
+ 
+  // 3. Check for phrase advance.
   if (
     nextIndex < phraseRows.length &&
     position >= phraseRows[nextIndex].phrase.startTime
   ) {
     activeIndex = nextIndex;
     nextIndex   = activeIndex + 1;
-
-    // Promote the new active row into the top slot.
+ 
+    // Flip which slot is active. The slot that held the previous "next" row
+    // becomes the new active slot; the slot that just finished becomes the
+    // new preload slot.
+    activeIsTop = !activeIsTop;
+ 
+    // Promote the new active row into whichever slot is now active.
     activatePhrase(
       phraseRows[activeIndex],
       phraseTopSlot,
       phraseBottomSlot,
+      activeIsTop,
       true
     );
-
-    // Reset the clip-path on the newly-active row to fully hidden so the fill
+ 
+    // Reset clip-path on the newly-active row to fully hidden so the fill
     // starts cleanly from the left with no leftover teal from a previous run.
     const newActive = phraseRows[activeIndex];
     if (newActive.coloredLayer) {
       newActive.coloredLayer.style.clipPath = "inset(0 100% 0 0)";
     }
-
-    // Pre-load the next phrase into the bottom slot if one exists.
+ 
+    // Preload the phrase after next into the now-free slot (dimmed).
     if (nextIndex < phraseRows.length) {
       activatePhrase(
         phraseRows[nextIndex],
         phraseTopSlot,
         phraseBottomSlot,
+        !activeIsTop,  // the opposite slot from the active one
         false
       );
     } else {
-      // No more phrases — clear the bottom slot.
-      phraseBottomSlot.innerHTML = "";
+      // No more phrases — clear the preload slot.
+      const emptySlot = activeIsTop ? phraseBottomSlot : phraseTopSlot;
+      emptySlot.innerHTML = "";
     }
   }
 }

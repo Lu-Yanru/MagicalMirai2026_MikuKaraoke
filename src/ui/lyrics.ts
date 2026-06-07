@@ -132,7 +132,8 @@ export function activatePhrase(
   row: PhraseRow,
   topSlot: HTMLElement,
   bottomSlot: HTMLElement,
-  isTop: boolean
+  isTop: boolean,
+  isActive: boolean
 ): void {
   if (!row.element) return;
 
@@ -144,7 +145,7 @@ export function activatePhrase(
   // Apply the correct visibility class before inserting.
   // "active" → full opacity; "next" → dimmed (opacity: 0.4 in CSS).
   row.element.classList.remove("active", "next");
-  row.element.classList.add(isTop ? "active" : "next");
+  row.element.classList.add(isActive ? "active" : "next");
 
   slot.appendChild(row.element);
 }
