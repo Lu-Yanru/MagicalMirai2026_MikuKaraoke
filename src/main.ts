@@ -24,6 +24,7 @@ import type { PhraseRow } from "./types";
 // activatePhrase() swaps phrase row elements in and out of these slots.
 const phraseTopSlot    = document.getElementById("phrase-top")    as HTMLElement;
 const phraseBottomSlot = document.getElementById("phrase-bottom") as HTMLElement;
+const lyricOverlay     = document.getElementById("lyric-overlay") as HTMLElement;
 const btnPlay          = document.getElementById("btn-play")      as HTMLButtonElement;
 
 // ─── Game state ───────────────────────────────────────────────────────────────
@@ -251,6 +252,11 @@ player.addListener({
       // Row 1 → bottom slot (next, dimmed).
       activatePhrase(phraseRows[nextIndex], phraseTopSlot, phraseBottomSlot, false, false);
     }
+
+    // Unhide the lyric overlay only after the first phrases are ready.
+    if (lyricOverlay) {
+      lyricOverlay.classList.remove("hidden");
+    }
   },
 
   // ── Seek event handlers ────────────────────────────────────────────────────
@@ -316,7 +322,47 @@ function tick(): void {
   // Skip updates mid-seek — position values are unstable during scrubbing.
   if (isSeeking) return;
  
-  const position  = player.timer.position;
+  const position = player.timer.position;
+ 
+  // If the playback position has already passed the next phrase start,
+  // advance the phrase state before rendering. This avoids a single-frame
+  // jump where the old active row is drawn at an out-of-date playhead.
+  while (
+    nextIndex < phraseRows.length &&
+    position >= phraseRows[nextIndex].phrase.startTime
+  ) {
+    activeIndex = nextIndex;
+    nextIndex   = activeIndex + 1;
+ 
+    activeIsTop = !activeIsTop;
+ 
+    activatePhrase(
+      phraseRows[activeIndex],
+      phraseTopSlot,
+      phraseBottomSlot,
+      activeIsTop,
+      true
+    );
+ 
+    const newActive = phraseRows[activeIndex];
+    if (newActive.coloredLayer) {
+      newActive.coloredLayer.style.clipPath = "inset(0 100% 0 0)";
+    }
+ 
+    if (nextIndex < phraseRows.length) {
+      activatePhrase(
+        phraseRows[nextIndex],
+        phraseTopSlot,
+        phraseBottomSlot,
+        !activeIsTop,
+        false
+      );
+    } else {
+      const emptySlot = activeIsTop ? phraseBottomSlot : phraseTopSlot;
+      emptySlot.innerHTML = "";
+    }
+  }
+ 
   const activeRow = phraseRows[activeIndex];
  
   // 1. Update the teal clip-path fill for the active phrase.
@@ -331,51 +377,6 @@ function tick(): void {
       (activeRow.phrase.endTime - activeRow.phrase.startTime);
     const pct = Math.min(Math.max(progress * 100, 0), 100);
     activeRow.playheadElement.style.left = `${pct}%`;
-  }
- 
-  // 3. Check for phrase advance.
-  if (
-    nextIndex < phraseRows.length &&
-    position >= phraseRows[nextIndex].phrase.startTime
-  ) {
-    activeIndex = nextIndex;
-    nextIndex   = activeIndex + 1;
- 
-    // Flip which slot is active. The slot that held the previous "next" row
-    // becomes the new active slot; the slot that just finished becomes the
-    // new preload slot.
-    activeIsTop = !activeIsTop;
- 
-    // Promote the new active row into whichever slot is now active.
-    activatePhrase(
-      phraseRows[activeIndex],
-      phraseTopSlot,
-      phraseBottomSlot,
-      activeIsTop,
-      true
-    );
- 
-    // Reset clip-path on the newly-active row to fully hidden so the fill
-    // starts cleanly from the left with no leftover teal from a previous run.
-    const newActive = phraseRows[activeIndex];
-    if (newActive.coloredLayer) {
-      newActive.coloredLayer.style.clipPath = "inset(0 100% 0 0)";
-    }
- 
-    // Preload the phrase after next into the now-free slot (dimmed).
-    if (nextIndex < phraseRows.length) {
-      activatePhrase(
-        phraseRows[nextIndex],
-        phraseTopSlot,
-        phraseBottomSlot,
-        !activeIsTop,  // the opposite slot from the active one
-        false
-      );
-    } else {
-      // No more phrases — clear the preload slot.
-      const emptySlot = activeIsTop ? phraseBottomSlot : phraseTopSlot;
-      emptySlot.innerHTML = "";
-    }
   }
 }
 
