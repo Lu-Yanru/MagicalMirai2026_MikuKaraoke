@@ -11,7 +11,7 @@
 
 import { Player, type IPlayerApp, type IVideo } from "textalive-app-api";
 import { buildSchedule } from "./game/scheduler";
-import { initLyrics, activatePhrase, updateLyrics, applyLetterSpacing } from "./ui/lyrics";
+import { initLyrics, activatePhrase, updateLyrics } from "./ui/lyrics";
 import type { PhraseRow } from "./types";
 
 // ─── DOM references ───────────────────────────────────────────────────────────
@@ -152,34 +152,34 @@ player.addListener({
       // });
 
       // シャッターチャンス / 夜未アガリ
-      player.createFromSongUrl("https://piapro.jp/t/PNpQ/20251209170719", {
-        video: {
-          // 音楽地図訂正履歴
-          beatId: 4827295,
-          chordId: 2963756,
-          repetitiveSegmentId: 3086263,
-      
-          // 歌詞URL: https://piapro.jp/t/wyWv
-          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FPNpQ%2F20251209170719
-          lyricId: 126542,
-          lyricDiffId: 28628
-        },
-      });
-
-      // 世界最後の音楽隊 / 夏山よつぎ×ど～ぱみん
-      // player.createFromSongUrl("https://piapro.jp/t/B3yJ/20251215061727", {
+      // player.createFromSongUrl("https://piapro.jp/t/PNpQ/20251209170719", {
       //   video: {
       //     // 音楽地図訂正履歴
-      //     beatId: 4827296,
-      //     chordId: 2963757,
-      //     repetitiveSegmentId: 3086264,
-      // 
-      //     // 歌詞URL: https://piapro.jp/t/9U-6
-      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FB3yJ%2F20251215061727
-      //     lyricId: 126594,
-      //     lyricDiffId: 28629
+      //     beatId: 4827295,
+      //     chordId: 2963756,
+      //     repetitiveSegmentId: 3086263,
+      
+      //     // 歌詞URL: https://piapro.jp/t/wyWv
+      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FPNpQ%2F20251209170719
+      //     lyricId: 126542,
+      //     lyricDiffId: 28628
       //   },
       // });
+
+      // 世界最後の音楽隊 / 夏山よつぎ×ど～ぱみん
+      player.createFromSongUrl("https://piapro.jp/t/B3yJ/20251215061727", {
+        video: {
+          // 音楽地図訂正履歴
+          beatId: 4827296,
+          chordId: 2963757,
+          repetitiveSegmentId: 3086264,
+      
+          // 歌詞URL: https://piapro.jp/t/9U-6
+          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FB3yJ%2F20251215061727
+          lyricId: 126594,
+          lyricDiffId: 28629
+        },
+      });
 
       // トリツクロジー / 鶴三
       // player.createFromSongUrl("https://piapro.jp/t/QBdL/20251215094303", {
@@ -262,15 +262,9 @@ player.addListener({
 
     if (phraseRows.length > 0) {
       activatePhrase(phraseRows[activeIndex], phraseTopSlot, phraseBottomSlot, true, true);
-      // Stretch row 0's text to fill the container so the clip-path
-      // percentage correctly maps to a fraction of the visible text.
-      applyLetterSpacing(phraseRows[activeIndex]);
     }
     if (phraseRows.length > 1) {
       activatePhrase(phraseRows[nextIndex], phraseTopSlot, phraseBottomSlot, false, false);
-      // Same for the next (dimmed) row — its letter-spacing must be set now
-      // so it's already correct when it becomes the active row later.
-      applyLetterSpacing(phraseRows[nextIndex]);
     }
 
     // Unhide the lyric overlay only after the first phrases are ready.
@@ -382,10 +376,6 @@ function tick(): void {
       activeIsTop,
       true
     );
-    // Re-apply letter-spacing for the newly active phrase row.
-    // (It was already applied when this row was loaded as "next", but
-    // re-applying is cheap and guards against any resize between activations.)
-    applyLetterSpacing(phraseRows[activeIndex]);
 
     const newActive = phraseRows[activeIndex];
     if (newActive.coloredLayer) {
@@ -400,8 +390,6 @@ function tick(): void {
         !activeIsTop,
         false
       );
-      // Pre-stretch the upcoming phrase so it's ready before it becomes active.
-      applyLetterSpacing(phraseRows[nextIndex]);
     } else {
       const emptySlot = activeIsTop ? phraseBottomSlot : phraseTopSlot;
       emptySlot.innerHTML = "";

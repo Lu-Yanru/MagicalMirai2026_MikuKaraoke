@@ -144,32 +144,46 @@ body {
 .phrase-row.next   { opacity: 0.6; }
 
 /* ─── Phrase text wrap ───────────────────────────────────────────────────────
-   position: relative creates the stacking context for the two overlapping text
-   layers (.phrase-dim and .phrase-colored) that produce the karaoke fill.
-   white-space: nowrap keeps lyrics on one line; overflow: hidden clips any
-   phrase that is wider than the overlay.                                       */
+   position: relative is the containing block for the absolutely-positioned
+   character spans. Height is explicit so the container doesn't collapse to
+   zero (absolute children don't contribute to flow height).
+   white-space: nowrap prevents line breaks within character spans.
+   overflow: hidden clips any character that would extend past the right edge
+   (can happen on very short phrases where the last character's span width
+   pushes it over 100%).                                                        */
 .phrase-text-wrap {
   position: relative;
-  font-size: 1.6rem;
-  line-height: 1.4;
+  height: 2.4rem;
+  line-height: 2.4rem;
   white-space: nowrap;
-  overflow: hidden;
+  overflow: visible;           /* allow first/last char to breathe */
+  padding-left: 0.8em;         /* half-character buffer so left:0% chars aren't clipped */
+  padding-right: 0.8em;        /* symmetrical: last char at ~100% also won't clip */
 }
 
-/* Dim base layer — always fully visible, acts as the "unsung" text colour.    */
-.phrase-dim {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-/* Teal fill layer — absolutely overlaps the dim layer at the same position.
-   clip-path: inset(0 X% 0 0) is updated every animation frame by lyrics.ts
-   to reveal the teal text left-to-right as the playhead advances.
-   No CSS transition here — the clip must follow the playhead with zero lag.   */
-.phrase-colored {
+/* Dim base layer for each character.
+   position: absolute + left: X% places it at its time-proportional position.
+   transform: translateX(-50%) centres the character glyph on that position
+   so the playhead dot (also centred at left: X%) aligns with the middle of
+   the character, not its left edge.                                            */
+.char-dim {
   position: absolute;
-  inset: 0;
+  color: rgba(255, 255, 255, 0.5);
+  transform: translateX(-50%);
+  font-size: 1.6rem;
+  user-select: none;
+}
+
+/* Teal colored layer — absolutely overlaps the dim span at the same position.
+   clip-path is updated each frame by updateLyrics().
+   No CSS transition — the clip must follow the playhead with zero lag.         */
+.char-colored {
+  position: absolute;
   color: #1d9e75;
-  /* clip-path is set inline by lyrics.ts each frame; no transition */
+  transform: translateX(-50%);
+  font-size: 1.6rem;
+  user-select: none;
+  /* clip-path set inline each frame */
 }
 
 /* ─── Cue bar track ──────────────────────────────────────────────────────────
