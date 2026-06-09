@@ -9,7 +9,7 @@
  * then consumed by the lyric UI, game loop, and scoring system.
  */
 
-import type { IChar, IPhrase, Player } from "textalive-app-api";
+import type { IChar, IBeat, IPhrase, Player } from "textalive-app-api";
 import type { CueEntry, Direction, PhraseRow } from "../types";
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -128,6 +128,7 @@ export function buildSchedule(player: Player): PhraseRow[] {
     element: null,
     coloredLayer: null,
     playheadElement: null,
+    blinkBeats: [],
   }));
 
   // Build a lookup: for each match, find its owning phrase row by index.
@@ -173,6 +174,18 @@ export function buildSchedule(player: Player): PhraseRow[] {
     row.cues.push(cue);
   }
 
+  // ── Blink beat schedule ──────────────────────────────────────────────────
+  // For each phrase, find the beats in the one bar immediately before the
+  // phrase starts. These are the timestamps at which the waiting playhead
+  // will flash in tick(), giving the player a count-in before the phrase.
+  //
+  // We use IBeat.position (0-based index within bar) and IBeat.length (number
+  // of beats in the bar) to identify bar boundaries without assuming a fixed
+  // time signature, so tempo and time signature changes mid-song are handled.
+  for (const row of phraseRows) {
+    row.blinkBeats = buildBlinkBeats(row.phrase.startTime, beats);
+  }
+
   return phraseRows;
 }
 
@@ -186,4 +199,73 @@ const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
 
 function randomDirection(): Direction {
   return DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)];
+}
+
+// ─── buildBlinkBeats ──────────────────────────────────────────────────────────
+
+/**
+ * Return the beats that form the one complete bar immediately before
+ * phraseStartTime. These are used as blink timestamps for the waiting playhead.
+ *
+ * Strategy:
+ *   1. Find the beat whose time range contains phraseStartTime, or the last
+ *      beat before it if phraseStartTime falls in a gap.
+ *   2. Walk backwards by exactly beat.length steps (one full bar).
+ *   3. Collect those beats in ascending order.
+ *   4. If fewer than beat.length beats exist before the phrase (song starts
+ *      too early), return however many are available (rule: blink for however
+ *      many beats are available).
+ *   5. Stop collecting if a beat's startTime >= phraseStartTime (rule b:
+ *      stop blinking when phrase starts).
+ *
+ * @param phraseStartTime - The startTime [ms] of the phrase.
+ * @param beats           - The full IBeat[] array from ISongMap, in order.
+ * @returns               - IBeat[] for the count-in bar, ascending by startTime.
+ */
+function buildBlinkBeats(phraseStartTime: number, beats: IBeat[]): IBeat[] {
+  if (beats.length === 0) return [];
+
+  // ── Step 1: Find the beat at or just before phraseStartTime ───────────────
+  // Binary search for the last beat whose startTime <= phraseStartTime.
+  // We want the beat the phrase "lands on" or just after.
+  let lo = 0;
+  let hi = beats.length - 1;
+  let anchorIndex = -1;
+
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (beats[mid].startTime <= phraseStartTime) {
+      anchorIndex = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+
+  // No beat at or before phraseStartTime — nothing to blink.
+  if (anchorIndex < 0) return [];
+
+  // ── Step 2: Determine how many beats to walk back (one full bar) ──────────
+  // IBeat.length is the number of beats in the bar containing that beat.
+  // We use the anchor beat's bar length as the count-in length.
+  // If the time signature changes mid-song, each beat carries its own .length,
+  // so the bar immediately before the phrase uses the correct value.
+  const barLength = beats[anchorIndex].length;
+
+  // ── Step 3: Collect the barLength beats ending at anchorIndex ─────────────
+  // Walk backwards from anchorIndex, collecting up to barLength beats.
+  // Stop early if we run out of beats (beginning of song).
+  const result: IBeat[] = [];
+
+  for (let i = anchorIndex; i >= 0 && result.length < barLength; i--) {
+    const beat = beats[i];
+
+    // Rule b: don't include beats that start at or after the phrase start.
+    // In practice anchorIndex already satisfies this, but guard explicitly.
+    if (beat.startTime >= phraseStartTime) continue;
+
+    result.unshift(beat); // prepend to keep ascending order
+  }
+
+  return result;
 }

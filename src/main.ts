@@ -72,6 +72,21 @@ const POSITION_COOLDOWN_FRAMES = 30; // ~133ms at 60fps — imperceptible to use
 // The last position value we computed and rendered. Held during cooldown.
 let lastRenderedPosition = 0;
 
+// Tracks which blink beats have already fired for the next phrase.
+// Reset to 0 whenever a new phrase becomes the "next" phrase.
+// Compared against phraseRows[nextIndex].blinkBeats.length each frame.
+let nextBlinkIndex = 0;
+
+// Whether the waiting playhead is currently in its "visible" phase of the blink.
+// Toggled each time a blink beat timestamp is passed in tick().
+let blinkVisible = false;
+
+// Blink state specifically for phrase 0's pre-start phase.
+// Kept separate so consuming phrase 0's blink beats does not corrupt the
+// blink state that phrase 1 (in the next slot) will later use.
+let activePreBlinkIndex = 0;
+let activePreBlinkVisible = false;
+
 // ─── Player instantiation ─────────────────────────────────────────────────────
 //
 // Player is the single entry point for the TextAlive App API.
@@ -122,19 +137,19 @@ player.addListener({
       //   https://developer.textalive.jp/events/magicalmirai2026/
       //
       // こたえて / imie
-      // player.createFromSongUrl("https://piapro.jp/t/6W2N/20251215164617", {
-      //   video: {
-      //     // 音楽地図訂正履歴
-      //     beatId: 4827293,
-      //     chordId: 2963754,
-      //     repetitiveSegmentId: 3086261,
+      player.createFromSongUrl("https://piapro.jp/t/6W2N/20251215164617", {
+        video: {
+          // 音楽地図訂正履歴
+          beatId: 4827293,
+          chordId: 2963754,
+          repetitiveSegmentId: 3086261,
       
-      //     // 歌詞URL: https://piapro.jp/t/9o24
-      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2F6W2N%2F20251215164617
-      //     lyricId: 126519,
-      //     lyricDiffId: 28645
-      //   },
-      // });
+          // 歌詞URL: https://piapro.jp/t/9o24
+          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2F6W2N%2F20251215164617
+          lyricId: 126519,
+          lyricDiffId: 28645
+        },
+      });
 
       // アフター・ザ・カーテン / Rulmry
       // player.createFromSongUrl("https://piapro.jp/t/zoqO/20251214200738", {
@@ -167,19 +182,19 @@ player.addListener({
       // });
 
       // 世界最後の音楽隊 / 夏山よつぎ×ど～ぱみん
-      player.createFromSongUrl("https://piapro.jp/t/B3yJ/20251215061727", {
-        video: {
-          // 音楽地図訂正履歴
-          beatId: 4827296,
-          chordId: 2963757,
-          repetitiveSegmentId: 3086264,
+      // player.createFromSongUrl("https://piapro.jp/t/B3yJ/20251215061727", {
+      //   video: {
+      //     // 音楽地図訂正履歴
+      //     beatId: 4827296,
+      //     chordId: 2963757,
+      //     repetitiveSegmentId: 3086264,
       
-          // 歌詞URL: https://piapro.jp/t/9U-6
-          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FB3yJ%2F20251215061727
-          lyricId: 126594,
-          lyricDiffId: 28629
-        },
-      });
+      //     // 歌詞URL: https://piapro.jp/t/9U-6
+      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FB3yJ%2F20251215061727
+      //     lyricId: 126594,
+      //     lyricDiffId: 28629
+      //   },
+      // });
 
       // トリツクロジー / 鶴三
       // player.createFromSongUrl("https://piapro.jp/t/QBdL/20251215094303", {
@@ -188,7 +203,7 @@ player.addListener({
       //     beatId: 4827297,
       //     chordId: 2963758,
       //     repetitiveSegmentId: 3086265,
-      // 
+      
       //     // 歌詞URL: https://piapro.jp/t/Nixq
       //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FQBdL%2F20251215094303
       //     lyricId: 126593,
@@ -203,7 +218,7 @@ player.addListener({
       //     beatId: 4827298,
       //     chordId: 2963759,
       //     repetitiveSegmentId: 3086266,
-      // 
+      
       //     // 歌詞URL: https://piapro.jp/t/zxWP
       //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FE2i3%2F20251215092113
       //     lyricId: 126533,
@@ -265,6 +280,16 @@ player.addListener({
     }
     if (phraseRows.length > 1) {
       activatePhrase(phraseRows[nextIndex], phraseTopSlot, phraseBottomSlot, false, false);
+    }
+
+    // Reset blink state whenever the schedule is (re)built.
+    nextBlinkIndex = 0;
+    blinkVisible = false;
+
+    // Position phrase 0's playhead in the waiting position immediately.
+    if (phraseRows.length > 0 && phraseRows[0].playheadElement) {
+      phraseRows[0].playheadElement.style.left    = "-8px";
+      phraseRows[0].playheadElement.style.opacity = "0";
     }
 
     // Unhide the lyric overlay only after the first phrases are ready.
@@ -394,20 +419,105 @@ function tick(): void {
       const emptySlot = activeIsTop ? phraseBottomSlot : phraseTopSlot;
       emptySlot.innerHTML = "";
     }
+
+    // A new phrase has become the "next" phrase. Reset the blink counter so
+    // tick() starts scanning its blinkBeats[] from the beginning.
+    nextBlinkIndex = 0;
+    blinkVisible = false;
+
+    // Also hide the new next phrase's playhead immediately — it will be
+    // shown by the blink logic above once its beat timestamps arrive.
+    if (nextIndex < phraseRows.length) {
+      const newNextRow = phraseRows[nextIndex];
+      if (newNextRow.playheadElement) {
+        newNextRow.playheadElement.style.left  = "-8px";
+        newNextRow.playheadElement.style.opacity = "0";
+      }
+    }
   }
 
   const activeRow = phraseRows[activeIndex];
 
-  // 1. Update the teal clip-path fill.
+  // The playhead has three states:
+  //   WAITING  — next phrase not yet started; playhead sits just left of the bar,
+  //               blinking on beat timestamps from blinkBeats[].
+  //   MOVING   — phrase is active; playhead slides left→right across the bar.
+  //   INACTIVE — phrase index is out of range; playhead hidden.
+  // 1. Update the teal clip-path fill for the active phrase (unchanged).
   updateLyrics(activeRow, position);
 
-  // 2. Update the playhead dot position.
+  // 2. Active phrase playhead: two sub-states.
   if (activeRow.playheadElement) {
-    const progress =
-      (position - activeRow.phrase.startTime) /
-      (activeRow.phrase.endTime - activeRow.phrase.startTime);
-    const pct = Math.min(Math.max(progress * 100, 0), 100);
-    activeRow.playheadElement.style.left = `${pct}%`;
+    if (position < activeRow.phrase.startTime) {
+      // PRE-START state: only reached by phrase 0 during the intro.
+      // Uses its own blink index and visibility variables so it does not
+      // interfere with nextBlinkIndex/blinkVisible, which belong to phrase 1
+      // sitting in the next slot and will be reset independently by the
+      // phrase-advance loop when phrase 0 starts moving.
+      activeRow.playheadElement.style.left = "-8px";
+
+      while (
+        activePreBlinkIndex < activeRow.blinkBeats.length &&
+        position >= activeRow.blinkBeats[activePreBlinkIndex].startTime
+      ) {
+        activePreBlinkVisible = !activePreBlinkVisible;
+        activePreBlinkIndex++;
+      }
+
+      activeRow.playheadElement.style.opacity = activePreBlinkVisible ? "1" : "0";
+    } else {
+      // MOVING state: phrase has started, playhead moves normally.
+      const progress =
+        (position - activeRow.phrase.startTime) /
+        (activeRow.phrase.endTime - activeRow.phrase.startTime);
+      const pct = Math.min(Math.max(progress * 100, 0), 100);
+      activeRow.playheadElement.style.left    = `${pct}%`;
+      activeRow.playheadElement.style.opacity = "1";
+    }
+  }
+
+  // 3. WAITING / blinking state: update the next phrase's playhead.
+  if (nextIndex < phraseRows.length) {
+    const nextRow = phraseRows[nextIndex];
+    const blinkBeats = nextRow.blinkBeats;
+
+    if (nextRow.playheadElement) {
+      const phraseStarted = position >= nextRow.phrase.startTime;
+
+      if (phraseStarted) {
+        // The phrase-advance while-loop above will have promoted this row to
+        // active on this same frame, so this branch is only reached in the
+        // single frame of transition. Hide the waiting playhead — the active
+        // branch above now owns it.
+        nextRow.playheadElement.style.opacity = "0";
+      } else {
+        // WAITING state: position playhead just left of the bar track.
+        // "left: 0%" is the left edge of the bar track. We use a small
+        // negative pixel offset so the playhead is flush against but not
+        // overlapping the bar. Half the playhead's width (8px = half of 16px)
+        // places its right edge exactly at the bar's left edge.
+        nextRow.playheadElement.style.left = "-8px";
+
+        // Advance through any blink beat timestamps that have now been passed.
+        // Each passed timestamp toggles the blink state once, producing an
+        // on/off flash per beat. We stop advancing if phraseStartTime is
+        // reached (rule b — already handled above by phraseStarted check).
+        while (
+          nextBlinkIndex < blinkBeats.length &&
+          position >= blinkBeats[nextBlinkIndex].startTime
+        ) {
+          // Toggle: each beat flips visible↔hidden, so beat 1 = on,
+          // beat 2 = off, beat 3 = on, beat 4 = off, then phrase starts.
+          // Starting from blinkVisible = false means beat 1 makes it visible.
+          blinkVisible = !blinkVisible;
+          nextBlinkIndex++;
+        }
+
+        // Apply the current blink state. Outside the blink window (no beats
+        // have fired yet) the playhead is hidden (blinkVisible starts false).
+        nextRow.playheadElement.style.opacity = blinkVisible ? "1" : "0";
+      }
+    }
   }
 }
 

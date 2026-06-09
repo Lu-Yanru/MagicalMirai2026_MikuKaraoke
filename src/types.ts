@@ -8,7 +8,7 @@
  * local to this project.
  */
 
-import type { IChar, IPhrase } from "textalive-app-api";
+import type { IChar, IBeat, IPhrase } from "textalive-app-api";
 
 // ─── Input ────────────────────────────────────────────────────────────────────
 
@@ -107,6 +107,11 @@ export interface PhraseRow {
   element: HTMLElement | null;
   coloredLayer: HTMLElement | null;
   playheadElement: HTMLElement | null;
+  // Timestamps [ms] at which the waiting playhead should flash, in ascending
+  // order. These are the startTimes of the beats in the bar immediately before
+  // this phrase starts. Built once in buildSchedule() and consumed each frame
+  // in tick(). Empty if there are no beats before the phrase.
+  blinkBeats: IBeat[];
 }
 
 // ─── Score state ──────────────────────────────────────────────────────────────
