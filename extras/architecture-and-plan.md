@@ -254,7 +254,7 @@ x 4. Style `.bar-track`: `position: relative`, `height: 32px`,
    `background: rgba(255,255,255,0.15)`, `border-radius: 16px`, full width.
    This is the track the playhead and cues sit on.
 
-5. Add a placeholder singer image (a solid colored rectangle is fine) as `#singer`.
+x 5. Add a placeholder singer image as `#singer`.
 
 x 6. Add placeholder text in `#phrase-top-text` and `#phrase-bottom-text` using
    two stacked `<div>` elements each: a dim base layer and a teal colored layer
@@ -590,9 +590,9 @@ expression visibly. Results are shown at song end. Works on mobile and desktop.
 
 | Chunk                      | Status      | Estimated time  |
 |----------------------------|-------------|-----------------|
-| 1 — Scaffold               | ✅ Complete  | —               |
-| 2 — Player init            | ✅ Complete  | —               |
-| 3 — Scheduler              | ✅ Complete  | —               |
+| 1 — Scaffold               | ✅ Complete  | 0.5 day               |
+| 2 — Player init            | ✅ Complete  | 1 day               |
+| 3 — Scheduler              | ✅ Complete  | 1 day               |
 | 4 — UI layout              | ✅ Complete | 2 days |
 | 5 — Lyric rendering        | 🔄 In progress | 2 days          |
 | 6 — Playhead + miss        | Not started | 2 days          |

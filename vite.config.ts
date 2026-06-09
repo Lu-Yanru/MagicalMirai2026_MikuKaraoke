@@ -1,5 +1,8 @@
 import { defineConfig } from 'vite'
 
-export default defineConfig({
-  base: 'MagicalMirai2026_MikuKaraoke',
-})
+export default defineConfig(({ command }) => ({
+  base:
+    command === 'build'
+      ? '/MagicalMirai2026_MikuKaraoke/'
+      : '/',
+}))

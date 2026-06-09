@@ -56,6 +56,22 @@ let activeIsTop = true;
 // https://developer.textalive.jp/packages/textalive-app-api/interfaces/Timer.html#position
 let isSeeking = false;
 
+// ─── Render loop state ─────────────────────────────────────────────────────────
+// prevIsPlaying tracks play state so we can detect the pause→play transition
+// inside the rAF loop without needing an onPlay callback.
+let prevIsPlaying = false;
+
+// How many more frames to hold the last known-good position before trusting
+// player.timer.position again. Set to POSITION_COOLDOWN_FRAMES whenever
+// playback resumes, because the audio timer takes a few frames to settle
+// after requestPlay() returns. Without this guard, the timer briefly reports
+// a stale position that makes the playhead visually jump.
+let positionCooldownFrames = 0;
+const POSITION_COOLDOWN_FRAMES = 30; // ~133ms at 60fps — imperceptible to user
+
+// The last position value we computed and rendered. Held during cooldown.
+let lastRenderedPosition = 0;
+
 // ─── Player instantiation ─────────────────────────────────────────────────────
 //
 // Player is the single entry point for the TextAlive App API.
@@ -315,27 +331,46 @@ btnPlay.addEventListener("click", () => {
 // scrolling karaoke display using only two fixed DOM slots.
 function tick(): void {
   requestAnimationFrame(tick);
- 
-  // Nothing to render until the schedule has been built.
+
   if (phraseRows.length === 0) return;
- 
-  // Skip updates mid-seek — position values are unstable during scrubbing.
   if (isSeeking) return;
- 
-  const position = player.timer.position;
- 
-  // If the playback position has already passed the next phrase start,
-  // advance the phrase state before rendering. This avoids a single-frame
-  // jump where the old active row is drawn at an out-of-date playhead.
+
+  // ── Detect play resumption and start cooldown ────────────────────────────
+  // player.isPlaying flips to true synchronously when requestPlay() is
+  // accepted, but player.timer.position may still be stale for several frames.
+  // We freeze the displayed position at its last known-good value and let the
+  // audio timer settle before reading it again.
+  const isPlaying = player.isPlaying;
+  if (isPlaying && !prevIsPlaying) {
+    // Just transitioned from paused → playing. Start the cooldown.
+    positionCooldownFrames = POSITION_COOLDOWN_FRAMES;
+  }
+  prevIsPlaying = isPlaying;
+
+  // ── Read position, suppressing stale timer values during cooldown ─────────
+  const rawPosition = player.timer.position;
+  let position: number;
+
+  if (positionCooldownFrames > 0) {
+    positionCooldownFrames--;
+    // Hold the last stable position while the audio timer settles.
+    // The playhead is visually stationary for ~133ms — imperceptible.
+    position = lastRenderedPosition;
+  } else {
+    position = rawPosition;
+    lastRenderedPosition = rawPosition;
+  }
+
+  // ── Phrase advance ────────────────────────────────────────────────────────
   while (
     nextIndex < phraseRows.length &&
     position >= phraseRows[nextIndex].phrase.startTime
   ) {
     activeIndex = nextIndex;
     nextIndex   = activeIndex + 1;
- 
+
     activeIsTop = !activeIsTop;
- 
+
     activatePhrase(
       phraseRows[activeIndex],
       phraseTopSlot,
@@ -343,12 +378,12 @@ function tick(): void {
       activeIsTop,
       true
     );
- 
+
     const newActive = phraseRows[activeIndex];
     if (newActive.coloredLayer) {
       newActive.coloredLayer.style.clipPath = "inset(0 100% 0 0)";
     }
- 
+
     if (nextIndex < phraseRows.length) {
       activatePhrase(
         phraseRows[nextIndex],
@@ -362,15 +397,13 @@ function tick(): void {
       emptySlot.innerHTML = "";
     }
   }
- 
+
   const activeRow = phraseRows[activeIndex];
- 
-  // 1. Update the teal clip-path fill for the active phrase.
+
+  // 1. Update the teal clip-path fill.
   updateLyrics(activeRow, position);
- 
-  // 2. Update the playhead dot position on the active bar.
-  // Mirrors the same progress calculation used by updateLyrics so the dot
-  // and the teal fill are always at exactly the same horizontal position.
+
+  // 2. Update the playhead dot position.
   if (activeRow.playheadElement) {
     const progress =
       (position - activeRow.phrase.startTime) /
