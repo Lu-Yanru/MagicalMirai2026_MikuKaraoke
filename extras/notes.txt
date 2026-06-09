@@ -1,0 +1,19 @@
+Chunk 3 issues:
+- Do not schedule cue at the start of a phrase row because do not have time to react. Or add some space before the phrase row so the playhead start moving before the phrase starts so people can anticipate.
+- Do not just schedule based on character but based on beat, ohterwise always at full beat and quite boring.
+- Add different types of cues, like holds and rapid presses.
+
+Chunk 4 issues:
+- Play button too small. Hard to use on mobile.
+- Singer pic too big, not enough part of body is shown. Maybe only occupy the upper 60% and center of the "stage".
+- Lyrics area can have less empty space araound and betwenn the two rows. Also move closer to the bottom (The arrow buttons). 
+
+Chunk 5 issues:
+x Playhead jump when play/resume.
+    -> Introduce cooldown frames after play/resume where the playhead is frozen until the player.time.position is in sync again.
+- Bar track fills up the whole window length while the phrase row doesn't, so the phrase row fills up faster than it should because the playhead moves more.
+    - The current approach just blindly adds the same amount of spaces between each character without considering the beats and the syllables of each character. As a result, the character currently being colored may not be the character currently being sung and it looks kinda weird. 
+        - Possible solution: add spaces depending on the beat.
+        - Just accept it because the playhead has to move at a constant speed? Yakuza Karaoke is kinda like this.
+- Set a max width and centered in the window because it's too wide on a big screen.
+- Shrink the font size of all lyrics phrases when the window is too small so that the whole phrase row fit in the width of the window.

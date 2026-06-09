@@ -190,3 +190,101 @@ export function updateLyrics(activeRow: PhraseRow, position: number): void {
   // Clip away the right (100 - pct)% to reveal the teal layer left-to-right.
   coloredLayer.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
 }
+
+// ─── applyLetterSpacing ───────────────────────────────────────────────────────
+
+/**
+ * Stretch the phrase text to fill the full width of its container by applying
+ * letter-spacing to both the dim and colored text layers.
+ *
+ * WHY THIS IS NEEDED
+ * The clip-path on .phrase-colored uses percentage values relative to the
+ * element's own width — which equals the full container/bar-track width.
+ * If the phrase text is narrower than the container, a progress value of P%
+ * would reveal P% of the full container, not P% of the visible text. The
+ * playhead dot (also at P% of the bar track) would appear ahead of the color
+ * fill boundary, breaking the sync.
+ *
+ * By stretching the text to exactly fill the container via letter-spacing, the
+ * two widths become equal and the existing percentage-based clip-path becomes
+ * correct without any formula change.
+ *
+ * WHEN TO CALL
+ * Must be called after activatePhrase() has inserted row.element into the DOM,
+ * so that getBoundingClientRect() returns real layout dimensions. The DOM probe
+ * technique used here requires the element to be in the document.
+ *
+ * @param row — The PhraseRow whose text layers should be stretched.
+ */
+export function applyLetterSpacing(row: PhraseRow): void {
+  if (!row.element || !row.coloredLayer) return;
+
+  // Locate the text-wrap container and the dim base layer inside this row.
+  // These are created by initLyrics() and are always present if row.element
+  // exists, but we guard with null checks to be safe.
+  const wrap      = row.element.querySelector(".phrase-text-wrap") as HTMLElement | null;
+  const dimLayer  = wrap?.querySelector(".phrase-dim")            as HTMLElement | null;
+  if (!wrap || !dimLayer) return;
+
+  // The container width is the rendered width of .phrase-text-wrap.
+  // Since phrase-row is full-width inside #lyric-overlay, this equals the
+  // available text area (overlay width minus padding).
+  const containerWidth = wrap.getBoundingClientRect().width;
+  if (containerWidth === 0) return; // layout hasn't settled yet — skip
+
+  // ── Measure natural text width at baseline spacing ────────────────────────
+  //
+  // We create a temporary off-screen <span> with the same font properties and
+  // letter-spacing: normal, then measure its rendered width.
+  //
+  // Why not Range.getBoundingClientRect()? The parent has overflow: hidden,
+  // which may clip the range rect to the visible area for text that overflows.
+  // The probe span is outside the overflow context so it always reports the
+  // full natural text width.
+  //
+  // Why not canvas.measureText()? Canvas ignores webfonts loaded after page
+  // load. TextAlive loads its font dynamically; using computed styles and an
+  // actual DOM element guarantees the correct font is measured.
+  const cs = getComputedStyle(dimLayer);
+  const probe = document.createElement("span");
+  probe.style.cssText =
+    "position:fixed;visibility:hidden;white-space:nowrap;padding:0;margin:0;border:0;";
+  probe.style.fontFamily   = cs.fontFamily;
+  probe.style.fontSize     = cs.fontSize;
+  probe.style.fontWeight   = cs.fontWeight;
+  probe.style.letterSpacing = "normal"; // always measure at baseline, never inherited
+  probe.textContent = row.phrase.text;
+  document.body.appendChild(probe);
+  const textWidth = probe.getBoundingClientRect().width;
+  document.body.removeChild(probe);
+
+  if (textWidth <= 0 || textWidth >= containerWidth) {
+    // Text already fills or overflows the container.
+    // Clear any letter-spacing that may have been set by a previous call
+    // (e.g. if the overlay was resized between activations).
+    // overflow: hidden on .phrase-text-wrap handles any overflowing text.
+    dimLayer.style.letterSpacing       = "";
+    row.coloredLayer.style.letterSpacing = "";
+    return;
+  }
+
+  // ── Compute and apply letter-spacing ─────────────────────────────────────
+  //
+  // CSS letter-spacing adds spacing after every character including the last,
+  // so for N characters:
+  //   renderedWidth = naturalTextWidth + N × spacing = containerWidth
+  //   spacing = (containerWidth − naturalTextWidth) / N
+  //
+  // Note: String.length is UTF-16 code unit count. For Japanese kana/kanji
+  // this equals the character count (no surrogate pairs), which is correct.
+  const n = row.phrase.text.length;
+  if (n === 0) return;
+
+  const spacing = (containerWidth - textWidth) / n;
+
+  // Apply identical spacing to both layers so their characters stay
+  // pixel-perfectly aligned. The clip-path on .phrase-colored then reveals
+  // an exact fraction of the actual text, matching the playhead position.
+  dimLayer.style.letterSpacing         = `${spacing}px`;
+  row.coloredLayer.style.letterSpacing = `${spacing}px`;
+}
