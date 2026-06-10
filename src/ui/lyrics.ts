@@ -122,13 +122,21 @@ export function initLyrics(phraseRows: PhraseRow[]): void {
     phraseCharEntries.set(row, charEntries);
 
     // ── Cue bar ─────────────────────────────────────────────────────────────
-    // Unchanged from original: one .cue div per CueEntry, one .playhead div.
-    const barTrack = document.createElement("div");
-    barTrack.className = "bar-track";
-
+    // .bar-track is the visible rounded background strip.
+    // .bar-track-inner is an absolutely positioned inner div inset from both
+    // ends of the track. Cues and the playhead are children of this inner div,
+    // so left: 0% and left: 100% map to the inset edges, not the outer edges.
+    // This prevents cues at the phrase start or end from hanging outside the
+    // visible bar area.
     const DIRECTION_CHARS: Record<string, string> = {
       up: "↑", down: "↓", left: "←", right: "→",
     };
+
+    const barTrack = document.createElement("div");
+    barTrack.className = "bar-track";
+
+    const barInner = document.createElement("div");
+    barInner.className = "bar-track-inner";
 
     for (const cue of row.cues) {
       const cueEl = document.createElement("div");
@@ -136,18 +144,18 @@ export function initLyrics(phraseRows: PhraseRow[]): void {
       cueEl.style.left = `${cue.barPosition}%`;
       cueEl.textContent = DIRECTION_CHARS[cue.direction] ?? "?";
       cue.element = cueEl;
-      barTrack.appendChild(cueEl);
+      barInner.appendChild(cueEl);   // child of inner, not outer
     }
 
     const playheadEl = document.createElement("div");
     playheadEl.className = "playhead";
     playheadEl.style.left = "0%";
     row.playheadElement = playheadEl;
-    barTrack.appendChild(playheadEl);
+    barInner.appendChild(playheadEl); // child of inner, not outer
 
+    barTrack.appendChild(barInner);
     rowEl.appendChild(textWrap);
     rowEl.appendChild(barTrack);
-    // Do NOT append to the document here — activatePhrase() does that.
   }
 }
 

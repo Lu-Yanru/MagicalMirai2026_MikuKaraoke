@@ -17,5 +17,7 @@ x Playhead jump when play/resume.
         - Possible solution: add spaces depending on the beat. -> Dynamically place characters based on percentage of the beat in the phrase.
             - Some characters a too close to each other. Playhead and color fill no longer in sync?
     - Just accept it because the playhead has to move at a constant speed? Yakuza Karaoke is kinda like this.
+x When cue at the start of the phrase, partially hang out of the bar track.
+    -> Add a inner bar track that is shorter than the visual bar track and place cues and lyrics along that.
 - Set a max width and centered in the window because it's too wide on a big screen.
 - Shrink the font size of all lyrics phrases when the window is too small so that the whole phrase row fit in the width of the window.

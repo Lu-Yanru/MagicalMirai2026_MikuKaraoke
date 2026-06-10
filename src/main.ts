@@ -137,19 +137,19 @@ player.addListener({
       //   https://developer.textalive.jp/events/magicalmirai2026/
       //
       // こたえて / imie
-      player.createFromSongUrl("https://piapro.jp/t/6W2N/20251215164617", {
-        video: {
-          // 音楽地図訂正履歴
-          beatId: 4827293,
-          chordId: 2963754,
-          repetitiveSegmentId: 3086261,
+      // player.createFromSongUrl("https://piapro.jp/t/6W2N/20251215164617", {
+      //   video: {
+      //     // 音楽地図訂正履歴
+      //     beatId: 4827293,
+      //     chordId: 2963754,
+      //     repetitiveSegmentId: 3086261,
       
-          // 歌詞URL: https://piapro.jp/t/9o24
-          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2F6W2N%2F20251215164617
-          lyricId: 126519,
-          lyricDiffId: 28645
-        },
-      });
+      //     // 歌詞URL: https://piapro.jp/t/9o24
+      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2F6W2N%2F20251215164617
+      //     lyricId: 126519,
+      //     lyricDiffId: 28645
+      //   },
+      // });
 
       // アフター・ザ・カーテン / Rulmry
       // player.createFromSongUrl("https://piapro.jp/t/zoqO/20251214200738", {
@@ -197,19 +197,19 @@ player.addListener({
       // });
 
       // トリツクロジー / 鶴三
-      // player.createFromSongUrl("https://piapro.jp/t/QBdL/20251215094303", {
-      //   video: {
-      //     // 音楽地図訂正履歴
-      //     beatId: 4827297,
-      //     chordId: 2963758,
-      //     repetitiveSegmentId: 3086265,
+      player.createFromSongUrl("https://piapro.jp/t/QBdL/20251215094303", {
+        video: {
+          // 音楽地図訂正履歴
+          beatId: 4827297,
+          chordId: 2963758,
+          repetitiveSegmentId: 3086265,
       
-      //     // 歌詞URL: https://piapro.jp/t/Nixq
-      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FQBdL%2F20251215094303
-      //     lyricId: 126593,
-      //     lyricDiffId: 28630
-      //   },
-      // });
+          // 歌詞URL: https://piapro.jp/t/Nixq
+          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FQBdL%2F20251215094303
+          lyricId: 126593,
+          lyricDiffId: 28630
+        },
+      });
 
       // TAKEOVER / Twinfield
       // player.createFromSongUrl("https://piapro.jp/t/E2i3/20251215092113", {
@@ -288,7 +288,7 @@ player.addListener({
 
     // Position phrase 0's playhead in the waiting position immediately.
     if (phraseRows.length > 0 && phraseRows[0].playheadElement) {
-      phraseRows[0].playheadElement.style.left    = "-8px";
+      phraseRows[0].playheadElement.style.left    = "calc(-0.8rem - 8px)";
       phraseRows[0].playheadElement.style.opacity = "0";
     }
 
@@ -430,7 +430,7 @@ function tick(): void {
     if (nextIndex < phraseRows.length) {
       const newNextRow = phraseRows[nextIndex];
       if (newNextRow.playheadElement) {
-        newNextRow.playheadElement.style.left  = "-8px";
+        newNextRow.playheadElement.style.left  = "calc(-0.8rem - 8px)";
         newNextRow.playheadElement.style.opacity = "0";
       }
     }
@@ -454,7 +454,7 @@ function tick(): void {
       // interfere with nextBlinkIndex/blinkVisible, which belong to phrase 1
       // sitting in the next slot and will be reset independently by the
       // phrase-advance loop when phrase 0 starts moving.
-      activeRow.playheadElement.style.left = "-8px";
+      activeRow.playheadElement.style.left = "calc(-0.8rem - 8px)";
 
       while (
         activePreBlinkIndex < activeRow.blinkBeats.length &&
@@ -496,7 +496,7 @@ function tick(): void {
         // negative pixel offset so the playhead is flush against but not
         // overlapping the bar. Half the playhead's width (8px = half of 16px)
         // places its right edge exactly at the bar's left edge.
-        nextRow.playheadElement.style.left = "-8px";
+        nextRow.playheadElement.style.left = "calc(-0.8rem - 8px)";
 
         // Advance through any blink beat timestamps that have now been passed.
         // Each passed timestamp toggles the blink state once, producing an

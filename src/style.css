@@ -157,8 +157,8 @@ body {
   line-height: 2.4rem;
   white-space: nowrap;
   overflow: visible;           /* allow first/last char to breathe */
-  padding-left: 0.8em;         /* half-character buffer so left:0% chars aren't clipped */
-  padding-right: 0.8em;        /* symmetrical: last char at ~100% also won't clip */
+  margin-left: 0.8em;         /* half-character buffer so left:0% chars aren't clipped */
+  margin-right: 0.8em;        /* symmetrical: last char at ~100% also won't clip */
 }
 
 /* Dim base layer for each character.
@@ -197,6 +197,24 @@ body {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 16px;
   overflow: visible;
+}
+
+/* ─── Bar track inner ────────────────────────────────────────────────────────
+   Inset container for cues and the moving playhead. By giving this a small
+   left and right margin, left: 0% on any child resolves to a position visually
+   inside the rounded bar track, not at its edge. The margin value should be
+   at least half the width of the widest child (the cue arrow, ~1.3rem / 2 =
+   ~0.65rem). Using 0.8rem gives a small comfortable buffer.
+   position: absolute with inset: 0 makes it fill the bar track first, then
+   the margin shrinks it inward from both sides.
+   pointer-events: none passes clicks through to the bar track.               */
+.bar-track-inner {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0.8rem;     /* inset from left edge: cue at left:0% is fully inside bar */
+  right: 0.8rem;    /* inset from right edge: cue at left:100% is fully inside bar */
+  pointer-events: none;
 }
 
 /* ─── Playhead dot ───────────────────────────────────────────────────────────
