@@ -269,7 +269,7 @@ x 8. Test on desktop and simulate 375px in DevTools. Adjust until no overflow
 
 ---
 
-### Chunk 5 — Lyric rendering, phrase display, and clip-path color fill
+### ✅ Chunk 5 — Lyric rendering, phrase display, and clip-path color fill
 
 **Goal**: Real lyrics render in the two phrase rows. The active phrase fills
 with teal color from left to right in perfect sync with the playhead. The rows
@@ -376,7 +376,7 @@ x 6. Add CSS for the two text layers:
    }
    ```
 
-7. Test: play the song. Verify the teal fill and the playhead dot always sit at
+x 7. Test: play the song. Verify the teal fill and the playhead dot always sit at
    exactly the same horizontal position. Verify the bottom row is fully dim with
    no fill. Verify the phrase swap resets the fill cleanly with no leftover teal
    from the previous phrase. Verify seeking backwards (if supported) clears the
@@ -594,8 +594,8 @@ expression visibly. Results are shown at song end. Works on mobile and desktop.
 | 2 — Player init            | ✅ Complete  | 1 day               |
 | 3 — Scheduler              | ✅ Complete  | 1 day               |
 | 4 — UI layout              | ✅ Complete | 2 days |
-| 5 — Lyric rendering        | 🔄 In progress | 2 days          |
-| 6 — Playhead + miss        | Not started | 2 days          |
+| 5 — Lyric rendering        | ✅ Complete | 2 days          |
+| 6 — Playhead + miss        | 🔄 In progress | 2 days          |
 | 7 — Input + scoring        | Not started | 2–3 days        |
 | 8 — Singer + polish        | Not started | 3–4 days        |
 | Singer art (parallel)      | Not started | 1 week          |

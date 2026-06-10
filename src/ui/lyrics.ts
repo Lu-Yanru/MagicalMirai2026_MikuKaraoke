@@ -42,6 +42,47 @@ interface CharEntry {
  */
 const phraseCharEntries = new WeakMap<PhraseRow, CharEntry[]>();
 
+// ─── measureCharWidths ────────────────────────────────────────────────────────
+
+/**
+ * Measure the rendered pixel width of each character in the phrase using an
+ * off-screen probe span. Called once per phrase during initLyrics before the
+ * row is inserted into the DOM, so getBoundingClientRect on the actual spans
+ * would return zero. The probe span uses the same font properties as the
+ * in-game character spans so the measurements are accurate.
+ *
+ * Returns an array of widths in pixels, parallel to the chars array.
+ *
+ * @param chars     - The characters whose widths are needed, in order.
+ * @param fontSize  - CSS font-size string (e.g. "1.6rem") matching .char-dim.
+ * @param fontFamily - CSS font-family string matching .char-dim.
+ * @param fontWeight - CSS font-weight string matching .char-dim.
+ */
+function measureCharWidths(
+  chars: string[],
+  fontSize: string,
+  fontFamily: string,
+  fontWeight: string
+): number[] {
+  // Create a single probe span and reuse it for all characters to minimise
+  // DOM operations. The span is off-screen and invisible so it never flashes.
+  const probe = document.createElement("span");
+  probe.style.cssText =
+    "position:fixed;visibility:hidden;white-space:nowrap;padding:0;margin:0;border:0;";
+  probe.style.fontSize   = fontSize;
+  probe.style.fontFamily = fontFamily;
+  probe.style.fontWeight = fontWeight;
+  document.body.appendChild(probe);
+
+  const widths = chars.map((ch) => {
+    probe.textContent = ch;
+    return probe.getBoundingClientRect().width;
+  });
+
+  document.body.removeChild(probe);
+  return widths;
+}
+
 // ─── initLyrics ───────────────────────────────────────────────────────────────
 
 /**
@@ -59,62 +100,155 @@ export function initLyrics(phraseRows: PhraseRow[]): void {
   for (const row of phraseRows) {
     const phraseDuration = row.phrase.endTime - row.phrase.startTime;
 
-    // ── Phrase row container ────────────────────────────────────────────────
     const rowEl = document.createElement("div");
     rowEl.className = "phrase-row";
     row.element = rowEl;
 
-    // ── Character text wrap ─────────────────────────────────────────────────
-    // position: relative makes this the containing block for the absolutely
-    // positioned character spans. Height is set to one line-height in CSS.
     const textWrap = document.createElement("div");
     textWrap.className = "phrase-text-wrap";
 
-    // ── Per-character span pairs ────────────────────────────────────────────
-    const charEntries: CharEntry[] = [];
-
-    // Walk the IChar linked list for this phrase.
-    // IPhrase.firstChar is the head; IChar.next walks to the next character.
-    // We check that each character belongs to this phrase by confirming its
-    // startTime falls within [phrase.startTime, phrase.endTime).
+    // ── Collect IChar list for this phrase ───────────────────────────────────
+    const chars: IChar[] = [];
     let char: IChar | null = row.phrase.firstChar;
     while (char) {
-      // Guard: stop if we've walked past this phrase's end time.
       if (char.startTime >= row.phrase.endTime) break;
+      chars.push(char);
+      char = char.next;
+    }
 
-      // Horizontal position: what fraction of the phrase's total duration
-      // has elapsed by the time this character starts?
-      // This maps time → horizontal space, so the constant-speed playhead
-      // reaches this character at exactly char.startTime.
-      const startPct =
-        phraseDuration > 0
-          ? ((char.startTime - row.phrase.startTime) / phraseDuration) * 100
-          : 0;
+    // ── Compute raw time-proportional positions (0–100%) ─────────────────────
+    // This is the ideal position for each character: the fraction of the phrase
+    // duration that has elapsed by the time the character starts.
+    const rawPcts: number[] = chars.map((c) =>
+      phraseDuration > 0
+        ? ((c.startTime - row.phrase.startTime) / phraseDuration) * 100
+        : 0
+    );
 
-      // Dim base span — always visible, provides the "unsung" color.
+    // ── Measure each character's pixel width using an off-screen probe ────────
+    // Needed to determine whether adjacent characters would overlap.
+    // Font properties must match those set on .char-dim / .char-colored in CSS.
+    // If the font has not yet loaded these will be fallback-font measurements,
+    // which are close enough for collision resolution purposes.
+    const charTexts = chars.map((c) => c.text);
+
+    // Read font properties from a temporary element styled with the game's CSS.
+    // We cannot read from an actual .char-dim span because none are in the DOM
+    // yet, so we create a temporary one, apply the class, measure, and remove.
+    const tempSpan = document.createElement("span");
+    tempSpan.className = "char-dim";
+    document.body.appendChild(tempSpan);
+    const cs = getComputedStyle(tempSpan);
+    const fontSize   = cs.fontSize;
+    const fontFamily = cs.fontFamily;
+    const fontWeight = cs.fontWeight;
+    document.body.removeChild(tempSpan);
+
+    const charWidthsPx = measureCharWidths(charTexts, fontSize, fontFamily, fontWeight);
+
+    // ── Convert pixel widths to percentage of phrase text wrap width ──────────
+    // The text wrap width equals the overlay width minus the 0.8rem margins on
+    // each side. We need the actual pixel width to convert charWidthsPx to pct.
+    // Since the text wrap is not in the DOM yet, we measure the overlay instead.
+    // This is safe because the overlay is always in the DOM after onVideoReady.
+    const overlay = document.getElementById("lyric-overlay");
+    // 0.8rem margin on each side; convert rem to px using the root font size.
+    const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const marginPx = 0.8 * remPx;
+    const containerWidthPx = overlay
+      ? overlay.getBoundingClientRect().width - marginPx * 2
+      : 600; // fallback if overlay not found
+
+    // Character widths as percentages of the container width.
+    const charWidthsPct = charWidthsPx.map((w) => (w / containerWidthPx) * 100);
+
+    // ── Collision resolution pass ─────────────────────────────────────────────
+    // Walk characters left to right. If character i's left edge (nudgedPcts[i])
+    // is closer to the previous character's right edge than zero, push it
+    // rightward just enough to clear the overlap. This preserves left-to-right
+    // ordering and general time proportions while eliminating overlaps.
+    //
+    // "Left edge" of character i = nudgedPcts[i] - charWidthsPct[i] / 2
+    // (because transform: translateX(-50%) centres the span on its left value).
+    // "Right edge" of character i = nudgedPcts[i] + charWidthsPct[i] / 2
+    const nudgedPcts: number[] = [...rawPcts];
+
+    for (let i = 1; i < nudgedPcts.length; i++) {
+      const prevRightEdge =
+        nudgedPcts[i - 1] + charWidthsPct[i - 1] / 2;
+      const currLeftEdge =
+        nudgedPcts[i] - charWidthsPct[i] / 2;
+
+      if (currLeftEdge < prevRightEdge) {
+        // Overlap detected: push character i rightward so its left edge is
+        // exactly at the previous character's right edge (zero gap).
+        // A small gap constant (0.3%) can be added here if a minimum gap
+        // between characters is preferred.
+        nudgedPcts[i] = prevRightEdge + charWidthsPct[i] / 2;
+      }
+    }
+
+    // ── Overflow rescale pass ─────────────────────────────────────────────────
+    // After collision resolution, characters nudged rightward may exceed 100%
+    // (the right edge of the container). If the rightmost character's right
+    // edge is past 100%, rescale all positions linearly so it fits exactly.
+    //
+    // The rescale compresses the range [firstLeft, lastRight] to [firstLeft, 100%]
+    // so the first character stays anchored and only the rightward excess is
+    // compressed. Relative spacing between characters is preserved as closely
+    // as possible given the available space.
+    const lastIdx = nudgedPcts.length - 1;
+    if (lastIdx >= 0) {
+      const lastRightEdge = nudgedPcts[lastIdx] + charWidthsPct[lastIdx] / 2;
+
+      if (lastRightEdge > 100) {
+        // How much space is available from the first character's left edge to 100%.
+        const firstLeftEdge = nudgedPcts[0] - charWidthsPct[0] / 2;
+        const availableRange = 100 - firstLeftEdge;
+
+        // How much space the characters currently occupy.
+        const usedRange = lastRightEdge - firstLeftEdge;
+
+        // Scale factor: compress used range to fit available range.
+        const scale = availableRange / usedRange;
+
+        for (let i = 0; i < nudgedPcts.length; i++) {
+          // Rescale each position relative to the first character's left edge.
+          nudgedPcts[i] =
+            firstLeftEdge +
+            (nudgedPcts[i] - firstLeftEdge) * scale;
+        }
+      }
+    }
+
+    // ── Build DOM spans using nudged positions ────────────────────────────────
+    const charEntries: CharEntry[] = [];
+
+    for (let i = 0; i < chars.length; i++) {
+      const c       = chars[i];
+      const leftPct = nudgedPcts[i];
+
       const dimSpan = document.createElement("span");
       dimSpan.className = "char-dim";
-      dimSpan.style.left = `${startPct}%`;
-      dimSpan.textContent = char.text;
+      dimSpan.style.left = `${leftPct}%`;
+      dimSpan.textContent = c.text;
 
-      // Teal colored span — overlaps the dim span exactly.
-      // Hidden initially (opacity 0); revealed when playhead passes startTime.
-      // While the playhead is inside this character's duration, clip-path
-      // provides a partial fill proportional to progress through the hold.
       const coloredSpan = document.createElement("span");
       coloredSpan.className = "char-colored";
-      coloredSpan.style.left = `${startPct}%`;
-      coloredSpan.textContent = char.text;
-      // Start fully clipped (hidden). updateLyrics() opens this up.
+      coloredSpan.style.left = `${leftPct}%`;
+      coloredSpan.textContent = c.text;
       coloredSpan.style.clipPath = "inset(0 100% 0 0)";
 
       textWrap.appendChild(dimSpan);
       textWrap.appendChild(coloredSpan);
 
-      charEntries.push({ char, startPct, dimSpan, coloredSpan });
-
-      // IChar.next is typed as IChar (not IRenderingUnit), so no cast needed.
-      char = char.next;
+      charEntries.push({
+        char: c,
+        startPct: leftPct,  // nudged position, used by updateLyrics for nothing
+                             // (updateLyrics uses char.startTime directly)
+        dimSpan,
+        coloredSpan,
+      });
     }
 
     // Store the char entries for this row so updateLyrics() can access them
