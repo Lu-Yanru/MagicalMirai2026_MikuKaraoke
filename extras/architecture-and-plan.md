@@ -43,7 +43,7 @@ project-root/
 │   └── singer/
 │       ├── idle.png            ← Singer sprite: default state
 │       ├── happy.png           ← Singer sprite: combo ≥ 10 or Perfect hit
-│       ├── great.png           ← Singer sprite: combo ≥ 5
+│       ├── singing.png           ← Singer sprite: combo ≥ 5
 │       └── sad.png             ← Singer sprite: Miss or Bad, combo = 0
 │
 ├── index.html                  ← Single HTML shell; structure injected here or by JS
@@ -534,9 +534,9 @@ expression visibly. Results are shown at song end. Works on mobile and desktop.
 2. Implement state logic:
    - `idle`: no `lastRating` yet (before first cue)
    - `happy`: `lastRating === 'Perfect'` or `combo >= 10`
-   - `great`: `combo >= 5` and `combo < 10`
+   - `singing`: `combo > 0` and `combo < 10`
    - `sad`: `lastRating === 'Miss'` or `lastRating === 'Bad'` or `combo === 0`
-   - Default (otherwise): `great` or `happy` based on combo threshold
+   - Default (otherwise): `singing` or `happy` based on combo threshold
 
 3. In `main.ts`, listen for `scoreupdate`. On each event, call `getSingerState`
    and update `<img id="singer">` src to the matching asset path. If the state
