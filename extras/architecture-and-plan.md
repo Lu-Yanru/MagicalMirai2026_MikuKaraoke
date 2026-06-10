@@ -405,13 +405,13 @@ x 1. In the `requestAnimationFrame` loop in `main.ts`, update the playhead
      Math.min(Math.max(progress * 100, 0), 100) + '%';
    ```
 
-2. Create `src/ui/rating.ts` exporting:
+x 2. Create `src/ui/rating.ts` exporting:
    - `RATING_COLORS: Record<RatingType, string>` — color map for all five ratings
    - `RATING_LABELS: Record<RatingType, string>` — display strings
    - `resolveCue(entry: CueEntry, rating: RatingType): void` — replaces arrow
      with rating word, triggers animation, schedules DOM removal
 
-3. In `resolveCue`:
+x 3. In `resolveCue`:
    - Guard: if `entry.resolved` is `true`, return immediately.
    - Set `entry.resolved = true`.
    - Replace `entry.element` text content with the rating label.

@@ -298,3 +298,10 @@ body {
   background: rgba(255, 255, 255, 0.3);
   transform: scale(0.95);
 }
+
+/* --- Ratings ------------ */
+@keyframes ratingPop {
+  0%   { transform: translateX(-50%) translateY(0);    opacity: 1; }
+  100% { transform: translateX(-50%) translateY(-36px); opacity: 0; }
+}
+.cue-resolved { animation: ratingPop 600ms ease-out forwards; }
