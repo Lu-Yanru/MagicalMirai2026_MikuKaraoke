@@ -101,10 +101,10 @@ Each arrow cue has a hit window of ±250ms around the beat timestamp:
 
 | Rating  | Condition                              | Combo effect | Color  |
 |---------|----------------------------------------|--------------|--------|
-| Perfect | correct direction, within ±50ms        | +1 combo     | Blue   |
-| Great   | correct direction, within ±100ms       | +1 combo     | Green   |
-| Good    | correct direction, within ±150ms       | +1 combo     | Yellow  |
-| Bad     | correct direction, within ±250ms       | reset to 0   | Purple   |
+| Perfect | correct direction, within ±33ms        | +1 combo     | Blue   |
+| Great   | correct direction, within ±66ms       | +1 combo     | Green   |
+| Good    | correct direction, within ±83ms       | +1 combo     | Yellow  |
+| Bad     | correct direction, within ±100ms       | reset to 0   | Purple   |
 | Miss    | wrong direction, or no press in window | reset to 0   | Red    |
 
 - A **wrong-direction press** is ignored entirely. The miss timeout fires

@@ -425,7 +425,7 @@ x 1. In the `requestAnimationFrame` loop in `main.ts`, update the playhead
 
 5. In `armCues`, for each unresolved cue in `row.cues`:
    - Calculate the time remaining until the miss window closes:
-     `delay = (cue.beatTime - player.timer.position) + 300` (250ms window + 50ms buffer)
+     `delay = (cue.beatTime - player.timer.position) + 150` (100ms window + 50ms buffer)
    - Set `cue.timeoutId = setTimeout(() => resolveCue(cue, 'Miss'), delay)`
 
 6. Call `armCues(row)` whenever a phrase row is activated (in the phrase-advance
@@ -465,15 +465,15 @@ resets on Bad and Miss. Score increments correctly.
 
 2. In `handleInput`:
    - Find the first unresolved cue in `activeRow.cues` whose `beatTime` is
-     within `[now - 250, now + 250]`. If none found, return (stray press).
+     within `[now - 100, now + 100]`. If none found, return (stray press).
    - If `cue.direction !== direction`, return (wrong direction — miss timeout
      handles it naturally).
    - If direction matches, compute `delta = Math.abs(now - cue.beatTime)` and
      assign rating:
-     - `delta <= 50`  → Perfect
-     - `delta <= 100` → Great
-     - `delta <= 150` → Good
-     - `delta <= 250` → Bad
+     - `delta <= 33`  → Perfect
+     - `delta <= 66` → Great
+     - `delta <= 83` → Good
+     - `delta <= 100` → Bad
    - Call `clearTimeout(cue.timeoutId)` to cancel the miss timer.
    - Call `resolveCue(cue, rating)` to display the rating word.
    - Call `applyRating(rating)` to update score state.

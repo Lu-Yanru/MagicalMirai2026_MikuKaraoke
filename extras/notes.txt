@@ -25,3 +25,14 @@ x When cue at the start of the phrase, partially hang out of the bar track.
 - Set a max width and centered in the window because it's too wide on a big screen.
 - Shrink the font size of all lyrics phrases when the window is too small so that the whole phrase row fit in the width of the window.
     -> Based on test with dev tools, works on small screens in horizontal mode. Add hint to play in horizonal mode.
+
+
+Additional features:
+- After the song finishes, show a summary screen with
+    - rating (S, A, B, C, D) + Miku face?
+    - score
+    - percentage
+    - break down of each rating
+    - combo
+    - Option to replay song, go back to main menu
+- Main menu to select song + instructions, full screen button, hint to use horizontal mode.
