@@ -117,8 +117,8 @@ export function initLyrics(phraseRows: PhraseRow[]): void {
     }
 
     // ── Compute raw time-proportional positions (0–100%) ─────────────────────
-    // This is the ideal position for each character: the fraction of the phrase
-    // duration that has elapsed by the time the character starts.
+    // Ideal position for each character: fraction of phrase duration elapsed
+    // by the time that character starts.
     const rawPcts: number[] = chars.map((c) =>
       phraseDuration > 0
         ? ((c.startTime - row.phrase.startTime) / phraseDuration) * 100
@@ -126,15 +126,8 @@ export function initLyrics(phraseRows: PhraseRow[]): void {
     );
 
     // ── Measure each character's pixel width using an off-screen probe ────────
-    // Needed to determine whether adjacent characters would overlap.
-    // Font properties must match those set on .char-dim / .char-colored in CSS.
-    // If the font has not yet loaded these will be fallback-font measurements,
-    // which are close enough for collision resolution purposes.
     const charTexts = chars.map((c) => c.text);
 
-    // Read font properties from a temporary element styled with the game's CSS.
-    // We cannot read from an actual .char-dim span because none are in the DOM
-    // yet, so we create a temporary one, apply the class, measure, and remove.
     const tempSpan = document.createElement("span");
     tempSpan.className = "char-dim";
     document.body.appendChild(tempSpan);
@@ -146,77 +139,138 @@ export function initLyrics(phraseRows: PhraseRow[]): void {
 
     const charWidthsPx = measureCharWidths(charTexts, fontSize, fontFamily, fontWeight);
 
-    // ── Convert pixel widths to percentage of phrase text wrap width ──────────
-    // The text wrap width equals the overlay width minus the 0.8rem margins on
-    // each side. We need the actual pixel width to convert charWidthsPx to pct.
-    // Since the text wrap is not in the DOM yet, we measure the overlay instead.
-    // This is safe because the overlay is always in the DOM after onVideoReady.
+    // ── Convert pixel widths to percentage of container width ─────────────────
     const overlay = document.getElementById("lyric-overlay");
-    // 0.8rem margin on each side; convert rem to px using the root font size.
     const remPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
     const marginPx = 0.8 * remPx;
     const containerWidthPx = overlay
       ? overlay.getBoundingClientRect().width - marginPx * 2
-      : 600; // fallback if overlay not found
+      : 600;
 
-    // Character widths as percentages of the container width.
     const charWidthsPct = charWidthsPx.map((w) => (w / containerWidthPx) * 100);
 
-    // ── Collision resolution pass ─────────────────────────────────────────────
-    // Walk characters left to right. If character i's left edge (nudgedPcts[i])
-    // is closer to the previous character's right edge than zero, push it
-    // rightward just enough to clear the overlap. This preserves left-to-right
-    // ordering and general time proportions while eliminating overlaps.
+    // ── Group characters into units by parent IWord ───────────────────────────
+    // IChar.parent is the IWord this character belongs to. Characters that
+    // share the same IWord object are part of the same word and should be
+    // kept together without added spacing between them.
     //
-    // "Left edge" of character i = nudgedPcts[i] - charWidthsPct[i] / 2
-    // (because transform: translateX(-50%) centres the span on its left value).
-    // "Right edge" of character i = nudgedPcts[i] + charWidthsPct[i] / 2
-    const nudgedPcts: number[] = [...rawPcts];
+    // For Japanese words (IWord.language === "ja"), each character is its own
+    // unit — Japanese characters are positioned individually.
+    // For English words (IWord.language === "en"), all characters in the word
+    // form one unit — letters stay packed together with no added spacing.
+    //
+    // Using IWord identity (reference equality) as the grouping key is robust:
+    // it handles punctuation, hyphens, mixed scripts, and any edge case the
+    // TextAlive API already knows about, without any character classification
+    // heuristics on our side.
+    interface CharUnit {
+      indices: number[];  // indices into chars[] that belong to this unit
+      centerPct: number;  // position of the unit center for collision resolution
+      widthPct: number;   // total rendered width of the unit as a percentage
+    }
 
-    for (let i = 1; i < nudgedPcts.length; i++) {
-      const prevRightEdge =
-        nudgedPcts[i - 1] + charWidthsPct[i - 1] / 2;
-      const currLeftEdge =
-        nudgedPcts[i] - charWidthsPct[i] / 2;
+    const units: CharUnit[] = [];
+    let i = 0;
+
+    while (i < chars.length) {
+      const word = chars[i].parent;  // IWord this character belongs to
+
+      if (word.language === "en") {
+        // English word: collect all characters that share this exact IWord.
+        // Using reference equality (===) so we never accidentally merge
+        // characters from two different IWord objects that happen to be
+        // adjacent.
+        const wordIndices: number[] = [];
+        while (i < chars.length && chars[i].parent === word) {
+          wordIndices.push(i);
+          i++;
+        }
+
+        // Total width of the word: sum of all letter widths.
+        const wordWidthPct = wordIndices.reduce(
+          (sum, idx) => sum + charWidthsPct[idx], 0
+        );
+
+        // Anchor the word's left edge at the first letter's raw time position
+        // minus half that letter's width (its left edge). The unit center is
+        // then the midpoint of the full word width from that left edge.
+        const firstIdx    = wordIndices[0];
+        const wordLeftEdge = rawPcts[firstIdx] - charWidthsPct[firstIdx] / 2;
+        const wordCenterPct = wordLeftEdge + wordWidthPct / 2;
+
+        units.push({
+          indices:    wordIndices,
+          centerPct:  wordCenterPct,
+          widthPct:   wordWidthPct,
+        });
+      } else {
+        // Non-English character (Japanese, symbol, etc.): treat as its own unit.
+        units.push({
+          indices:   [i],
+          centerPct: rawPcts[i],
+          widthPct:  charWidthsPct[i],
+        });
+        i++;
+      }
+    }
+
+    // ── Collision resolution pass (operates on units) ─────────────────────────
+    // Walk units left to right. If a unit's left edge overlaps the previous
+    // unit's right edge, push it rightward just enough to clear the overlap.
+    const nudgedUnitCenters: number[] = units.map((u) => u.centerPct);
+
+    for (let u = 1; u < units.length; u++) {
+      const prevRightEdge = nudgedUnitCenters[u - 1] + units[u - 1].widthPct / 2;
+      const currLeftEdge  = nudgedUnitCenters[u]     - units[u].widthPct     / 2;
 
       if (currLeftEdge < prevRightEdge) {
-        // Overlap detected: push character i rightward so its left edge is
-        // exactly at the previous character's right edge (zero gap).
-        // A small gap constant (0.3%) can be added here if a minimum gap
-        // between characters is preferred.
-        nudgedPcts[i] = prevRightEdge + charWidthsPct[i] / 2;
+        nudgedUnitCenters[u] = prevRightEdge + units[u].widthPct / 2;
       }
     }
 
     // ── Overflow rescale pass ─────────────────────────────────────────────────
-    // After collision resolution, characters nudged rightward may exceed 100%
-    // (the right edge of the container). If the rightmost character's right
-    // edge is past 100%, rescale all positions linearly so it fits exactly.
-    //
-    // The rescale compresses the range [firstLeft, lastRight] to [firstLeft, 100%]
-    // so the first character stays anchored and only the rightward excess is
-    // compressed. Relative spacing between characters is preserved as closely
-    // as possible given the available space.
-    const lastIdx = nudgedPcts.length - 1;
-    if (lastIdx >= 0) {
-      const lastRightEdge = nudgedPcts[lastIdx] + charWidthsPct[lastIdx] / 2;
+    // If the rightmost unit's right edge exceeds 100%, rescale all unit centers
+    // linearly so everything fits within the container.
+    const lastUnitIdx = units.length - 1;
+    if (lastUnitIdx >= 0) {
+      const lastRightEdge =
+        nudgedUnitCenters[lastUnitIdx] + units[lastUnitIdx].widthPct / 2;
 
       if (lastRightEdge > 100) {
-        // How much space is available from the first character's left edge to 100%.
-        const firstLeftEdge = nudgedPcts[0] - charWidthsPct[0] / 2;
+        const firstLeftEdge  = nudgedUnitCenters[0] - units[0].widthPct / 2;
         const availableRange = 100 - firstLeftEdge;
+        const usedRange      = lastRightEdge - firstLeftEdge;
+        const scale          = availableRange / usedRange;
 
-        // How much space the characters currently occupy.
-        const usedRange = lastRightEdge - firstLeftEdge;
+        for (let u = 0; u < nudgedUnitCenters.length; u++) {
+          nudgedUnitCenters[u] =
+            firstLeftEdge + (nudgedUnitCenters[u] - firstLeftEdge) * scale;
+        }
+      }
+    }
 
-        // Scale factor: compress used range to fit available range.
-        const scale = availableRange / usedRange;
+    // ── Resolve nudged unit centers back to individual character positions ─────
+    // Single-character units: character left% equals unit center.
+    // Multi-character English words: pack letters tightly left to right from
+    // the unit's nudged left edge, each letter occupying its own measured width.
+    const nudgedPcts: number[] = new Array(chars.length);
 
-        for (let i = 0; i < nudgedPcts.length; i++) {
-          // Rescale each position relative to the first character's left edge.
-          nudgedPcts[i] =
-            firstLeftEdge +
-            (nudgedPcts[i] - firstLeftEdge) * scale;
+    for (let u = 0; u < units.length; u++) {
+      const unit       = units[u];
+      const unitCenter = nudgedUnitCenters[u];
+      const unitLeft   = unitCenter - unit.widthPct / 2;
+
+      if (unit.indices.length === 1) {
+        // Single character: its center is the unit center.
+        nudgedPcts[unit.indices[0]] = unitCenter;
+      } else {
+        // English word: lay out letters tightly from the left edge.
+        // cursor tracks the left edge of the next letter to place.
+        let cursor = unitLeft;
+        for (const idx of unit.indices) {
+          // Centre the letter span on its own midpoint within the word.
+          nudgedPcts[idx] = cursor + charWidthsPct[idx] / 2;
+          cursor += charWidthsPct[idx];
         }
       }
     }

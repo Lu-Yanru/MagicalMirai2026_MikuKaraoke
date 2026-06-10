@@ -19,6 +19,7 @@ x Bar track fills up the whole window length while the phrase row doesn't, so th
         - Possible solution: add spaces depending on the beat. -> Dynamically place characters based on percentage of the beat in the phrase.
             - Some characters a too close to each other -> Post-process the characters and adjust so they don't overlap. Trade-off is the timing is not entirely accurate anymore.
             - Playhead and color fill no longer in sync?
+            - English words are separated by spaces too. -> In post-processing collision resolution, first find english words and resolve as a group.
     - Just accept it because the playhead has to move at a constant speed? Yakuza Karaoke is kinda like this.
 x When cue at the start of the phrase, partially hang out of the bar track.
     -> Add a inner bar track that is shorter than the visual bar track and place cues and lyrics along that.
