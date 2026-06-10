@@ -22,7 +22,7 @@
  */
 
 import { resolveCue } from "./rating";
-import type { PhraseRow } from "../types";
+import type { PhraseRow, RatingType } from "../types";
 
 // ─── Timing constants ─────────────────────────────────────────────────────────
 
@@ -62,7 +62,11 @@ const MISS_BUFFER_MS = 5;
  *                          reading from the player directly so this module
  *                          stays decoupled from the TextAlive API.
  */
-export function armCues(row: PhraseRow, currentPosition: number): void {
+export function armCues(
+  row: PhraseRow,
+  currentPosition: number,
+  onMiss: (rating: RatingType) => void   // called after resolveCue on miss
+): void {
   for (const cue of row.cues) {
     // Skip cues that were already resolved (e.g. on a re-activation after seek).
     if (cue.resolved) continue;
@@ -78,6 +82,8 @@ export function armCues(row: PhraseRow, currentPosition: number): void {
     // Store the timeout ID on the cue so scoring.ts can cancel it on a hit.
     cue.timeoutId = setTimeout(() => {
       resolveCue(cue, "Miss");
+      // Notify the score manager so Miss affects combo and score.
+      onMiss("Miss");
     }, delay) as unknown as number;
     // Note: in a browser, setTimeout returns a number. The `as unknown as number`
     // cast is needed because TypeScript in some configs infers the Node.js

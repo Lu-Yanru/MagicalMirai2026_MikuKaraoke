@@ -1,6 +1,8 @@
 Chunk 3 issues:
 x Do not schedule cue at the start of a phrase row because do not have time to react. Or add some space before the phrase row so the playhead start moving before the phrase starts so people can anticipate.
     -> Adding a blinking cue in front of each phrase row to indicate a phrase is about to start.
+- When there is no intro and a cue is scheduled close to the start of the song, hard to react to it. (Only for トリツクロジー -> Skip because it's a Rin song.)
+- Some phrases are too fast and there isn't enough time to see the cues.
 - Do not just schedule based on character but based on beat, otherwise always at full beat and quite boring.
 - Add different types of cues, like holds and rapid presses.
 
@@ -37,3 +39,4 @@ Additional features:
     - combo
     - Option to replay song, go back to main menu
 - Main menu to select song + instructions, full screen button, hint to use horizontal mode.
+- Animation to input pad: "pressed" either when keyboard or touch/mouse clicked.

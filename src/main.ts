@@ -11,9 +11,10 @@
 
 import { Player, type IPlayerApp, type IVideo } from "textalive-app-api";
 import { buildSchedule } from "./game/scheduler";
+import { ScoreManager } from "./game/scoring";
 import { armCues, disarmCues } from "./ui/arrows";
 import { initLyrics, activatePhrase, updateLyrics } from "./ui/lyrics";
-import type { PhraseRow } from "./types";
+import type { PhraseRow, Direction, ScoreState } from "./types";
 
 // ─── DOM references ───────────────────────────────────────────────────────────
 //
@@ -88,6 +89,11 @@ let blinkVisible = false;
 let activePreBlinkIndex = 0;
 let activePreBlinkVisible = false;
 
+// ─── Score manager ────────────────────────────────────────────────────────────
+// Instantiated once. Handles hit detection, rating calculation, and score state.
+// Communicates outward via the 'scoreupdate' CustomEvent — no DOM refs inside.
+const scoreManager = new ScoreManager();
+
 // ─── Player instantiation ─────────────────────────────────────────────────────
 //
 // Player is the single entry point for the TextAlive App API.
@@ -153,19 +159,19 @@ player.addListener({
       // });
 
       // アフター・ザ・カーテン / Rulmry
-      // player.createFromSongUrl("https://piapro.jp/t/zoqO/20251214200738", {
-      //   video: {
-      //     // 音楽地図訂正履歴
-      //     beatId: 4827294,
-      //     chordId: 2963755,
-      //     repetitiveSegmentId: 3086262,
+      player.createFromSongUrl("https://piapro.jp/t/zoqO/20251214200738", {
+        video: {
+          // 音楽地図訂正履歴
+          beatId: 4827294,
+          chordId: 2963755,
+          repetitiveSegmentId: 3086262,
       
-      //     // 歌詞URL: https://piapro.jp/t/EVO2
-      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FzoqO%2F20251214200738
-      //     lyricId: 126591,
-      //     lyricDiffId: 28627
-      //   },
-      // });
+          // 歌詞URL: https://piapro.jp/t/EVO2
+          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FzoqO%2F20251214200738
+          lyricId: 126591,
+          lyricDiffId: 28627
+        },
+      });
 
       // シャッターチャンス / 夜未アガリ
       // player.createFromSongUrl("https://piapro.jp/t/PNpQ/20251209170719", {
@@ -213,19 +219,19 @@ player.addListener({
       // });
 
       // TAKEOVER / Twinfield
-      player.createFromSongUrl("https://piapro.jp/t/E2i3/20251215092113", {
-        video: {
-          // 音楽地図訂正履歴
-          beatId: 4827298,
-          chordId: 2963759,
-          repetitiveSegmentId: 3086266,
+      // player.createFromSongUrl("https://piapro.jp/t/E2i3/20251215092113", {
+      //   video: {
+      //     // 音楽地図訂正履歴
+      //     beatId: 4827298,
+      //     chordId: 2963759,
+      //     repetitiveSegmentId: 3086266,
       
-          // 歌詞URL: https://piapro.jp/t/zxWP
-          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FE2i3%2F20251215092113
-          lyricId: 126533,
-          lyricDiffId: 28631
-        },
-      });
+      //     // 歌詞URL: https://piapro.jp/t/zxWP
+      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FE2i3%2F20251215092113
+      //     lyricId: 126533,
+      //     lyricDiffId: 28631
+      //   },
+      // });
     }
   },
 
@@ -313,7 +319,7 @@ player.addListener({
   // phrase only arms the cues that have not yet been hit or missed.
   onPlay() {
     if (phraseRows.length > 0) {
-      armCues(phraseRows[activeIndex], player.timer.position);
+      armCues(phraseRows[activeIndex], player.timer.position, (r) => scoreManager.applyRating(r));
     }
   },
 
@@ -354,6 +360,79 @@ btnPlay.addEventListener("click", () => {
   } else {
     player.requestPlay();
   }
+});
+
+// ─── Keyboard input ───────────────────────────────────────────────────────────
+//
+// Arrow keys map to the four directions. e.preventDefault() stops the browser
+// from scrolling the page on arrow key presses during gameplay.
+// We pass lastRenderedPosition (not player.timer.position) so the timing
+// judgement is consistent with the playhead position the player sees on screen.
+const KEY_TO_DIRECTION: Record<string, Direction> = {
+  ArrowUp:    "up",
+  ArrowDown:  "down",
+  ArrowLeft:  "left",
+  ArrowRight: "right",
+};
+
+document.addEventListener("keydown", (e) => {
+  const direction = KEY_TO_DIRECTION[e.key];
+  if (!direction) return;
+
+  // Prevent arrow keys from scrolling the page during gameplay.
+  e.preventDefault();
+
+  // Ignore input if no song is loaded yet or song hasn't started.
+  if (phraseRows.length === 0) return;
+
+  scoreManager.handleInput(direction, lastRenderedPosition, phraseRows[activeIndex]);
+});
+
+// ─── Touch / click input ──────────────────────────────────────────────────────
+//
+// Single delegated listener on #input-pad handles all four buttons.
+// touchstart is used instead of click for lower latency on mobile (~300ms
+// faster). { passive: false } is required so e.preventDefault() is allowed —
+// without it Chrome throws a console error and the call is ignored, causing
+// a synthetic click to fire ~300ms later and double-trigger the input.
+//
+// The data-direction attribute on each button maps directly to Direction.
+const inputPad = document.getElementById("input-pad") as HTMLElement;
+
+// Helper: extract direction from a button press and forward to ScoreManager.
+function handlePadInput(target: EventTarget | null): void {
+  if (!(target instanceof HTMLElement)) return;
+  const dir = target.closest("button")?.dataset["direction"] as Direction | undefined;
+  if (!dir) return;
+  if (phraseRows.length === 0) return;
+  scoreManager.handleInput(dir, lastRenderedPosition, phraseRows[activeIndex]);
+}
+
+// touchstart: primary path on mobile. passive:false allows preventDefault.
+inputPad.addEventListener("touchstart", (e) => {
+  e.preventDefault(); // blocks the synthetic click that would fire 300ms later
+  handlePadInput(e.target);
+}, { passive: false });
+
+// click: fallback for desktop (mouse) and any touch device where touchstart
+// was not suppressed. Will not double-fire on touch because preventDefault()
+// above cancels the synthetic click on touchstart.
+inputPad.addEventListener("click", (e) => {
+  handlePadInput(e.target);
+});
+
+// ─── HUD score update ─────────────────────────────────────────────────────────
+//
+// Listen for the 'scoreupdate' CustomEvent dispatched by ScoreManager.applyRating().
+// Updates the score and combo display in the HUD. The event detail is a snapshot
+// of ScoreState — a plain object, not a live reference to the mutable state.
+const scoreEl = document.getElementById("score") as HTMLElement;
+const comboEl = document.getElementById("combo") as HTMLElement;
+
+document.addEventListener("scoreupdate", (e) => {
+  const state = (e as CustomEvent<ScoreState>).detail;
+  scoreEl.textContent = String(state.score);
+  comboEl.textContent = `${state.combo}x`;
 });
 
 // ─── Render loop ──────────────────────────────────────────────────────────────
@@ -421,7 +500,7 @@ function tick(): void {
     );
 
     // Arm miss timeouts now that this row is the active one.
-    armCues(phraseRows[activeIndex], position);
+    armCues(phraseRows[activeIndex], position, (r) => scoreManager.applyRating(r));
 
     const newActive = phraseRows[activeIndex];
     if (newActive.coloredLayer) {

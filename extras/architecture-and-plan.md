@@ -447,7 +447,7 @@ x 8. Test: play without pressing. Confirm every arrow becomes "Miss". Confirm th
 
 ---
 
-### Chunk 7 — Input handling and scoring
+### ✅ Chunk 7 — Input handling and scoring
 
 **Goal**: Pressing the correct arrow key or button at the right time produces
 a rating. Score and combo update on screen.
@@ -458,12 +458,12 @@ resets on Bad and Miss. Score increments correctly.
 
 #### Steps
 
-1. Create `src/game/scoring.ts` exporting a `ScoreManager` class with:
+x 1. Create `src/game/scoring.ts` exporting a `ScoreManager` class with:
    - `state: ScoreState`
    - `handleInput(direction: Direction, now: number, activeRow: PhraseRow): void`
    - `applyRating(rating: RatingType): void`
 
-2. In `handleInput`:
+x 2. In `handleInput`:
    - Find the first unresolved cue in `activeRow.cues` whose `beatTime` is
      within `[now - 100, now + 100]`. If none found, return (stray press).
    - If `cue.direction !== direction`, return (wrong direction — miss timeout
@@ -478,7 +478,7 @@ resets on Bad and Miss. Score increments correctly.
    - Call `resolveCue(cue, rating)` to display the rating word.
    - Call `applyRating(rating)` to update score state.
 
-3. In `applyRating`:
+x 3. In `applyRating`:
    - Add points: Perfect +300, Great +200, Good +100, Bad +50, Miss +0.
    - Increment `combo` for Perfect/Great/Good; reset to 0 for Bad/Miss.
    - Update `maxCombo` if `combo > maxCombo`.
@@ -489,7 +489,7 @@ resets on Bad and Miss. Score increments correctly.
      document.dispatchEvent(new CustomEvent('scoreupdate', { detail: this.state }));
      ```
 
-4. Add keyboard listener in `main.ts`:
+x 4. Add keyboard listener in `main.ts`:
    ```ts
    document.addEventListener('keydown', (e) => {
      const map: Record<string, Direction> = {
@@ -504,15 +504,15 @@ resets on Bad and Miss. Score increments correctly.
    });
    ```
 
-5. Add `click` and `touchstart` listeners on the four `#input-pad` buttons,
+x 5. Add `click` and `touchstart` listeners on the four `#input-pad` buttons,
    each calling `handleInput` with the appropriate direction. Use `touchstart`
    (not `click`) for lower latency on mobile. Call `e.preventDefault()` on
    touch events to avoid double-firing.
 
-6. Listen for `scoreupdate` in `main.ts` and update `#score` and `#combo`
+x 6. Listen for `scoreupdate` in `main.ts` and update `#score` and `#combo`
    text content in the HUD.
 
-7. Test: play and press keys. Verify each timing window produces the correct
+x 7. Test: play and press keys. Verify each timing window produces the correct
    rating. Verify stray presses do nothing. Verify wrong-direction presses
    do nothing and the miss still fires. Verify combo resets on Bad and Miss.
 
