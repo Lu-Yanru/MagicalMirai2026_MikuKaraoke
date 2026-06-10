@@ -299,9 +299,33 @@ body {
   transform: scale(0.95);
 }
 
-/* --- Ratings ------------ */
+/* ─── Rating pop animation ───────────────────────────────────────────────────
+   Triggered by adding .cue-resolved to a cue element in resolveCue().
+
+   Both keyframe steps carry translateX(-50%) explicitly because CSS keyframe
+   animations replace the element's transform property entirely — they do not
+   stack on top of the static transform: translate(-50%, -50%) set on .cue.
+   Without the X component here, the centering is lost and the label drifts
+   horizontally mid-animation.
+
+   The Y starts at -50% (matching the static .cue centering) and ends 36px
+   higher, so there is no visual jump when the animation begins.              */
 @keyframes ratingPop {
-  0%   { transform: translateX(-50%) translateY(0);    opacity: 1; }
-  100% { transform: translateX(-50%) translateY(-36px); opacity: 0; }
+  0%   {
+    transform: translate(-50%, -50%);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, calc(-50% - 36px));
+    opacity: 0;
+  }
 }
-.cue-resolved { animation: ratingPop 600ms ease-out forwards; }
+
+.cue-resolved {
+  animation: ratingPop 600ms ease-out forwards;
+  /* Override the static font size slightly so rating words
+     are readable at the same size as the arrow they replace. */
+  font-size: 0.85rem;
+  white-space: nowrap;
+  pointer-events: none;
+}

@@ -384,7 +384,7 @@ x 7. Test: play the song. Verify the teal fill and the playhead dot always sit a
 
 ---
 
-### Chunk 6 — Playhead animation and miss detection
+### ✅ Chunk 6 — Playhead animation and miss detection
 
 **Goal**: The playhead slides across the active bar in real time. Arrow cues
 auto-resolve to "Miss" if not pressed.
@@ -419,19 +419,19 @@ x 3. In `resolveCue`:
    - Add CSS class `cue-resolved` which triggers the float-up animation.
    - After 600ms (`setTimeout`), remove the element from the DOM.
 
-4. Create `src/ui/arrows.ts` exporting:
+x 4. Create `src/ui/arrows.ts` exporting:
    - `armCues(row: PhraseRow): void` — sets miss timeouts for all cues in a
      phrase row when that row becomes active
 
-5. In `armCues`, for each unresolved cue in `row.cues`:
+x 5. In `armCues`, for each unresolved cue in `row.cues`:
    - Calculate the time remaining until the miss window closes:
      `delay = (cue.beatTime - player.timer.position) + 150` (100ms window + 50ms buffer)
    - Set `cue.timeoutId = setTimeout(() => resolveCue(cue, 'Miss'), delay)`
 
-6. Call `armCues(row)` whenever a phrase row is activated (in the phrase-advance
+x 6. Call `armCues(row)` whenever a phrase row is activated (in the phrase-advance
    logic from Chunk 5).
 
-7. Add CSS `@keyframes ratingPop`:
+x 7. Add CSS `@keyframes ratingPop`:
    ```css
    @keyframes ratingPop {
      0%   { transform: translateX(-50%) translateY(0);    opacity: 1; }
@@ -441,7 +441,7 @@ x 3. In `resolveCue`:
    ```
    Add color classes `.rating-perfect`, `.rating-great`, etc.
 
-8. Test: play without pressing. Confirm every arrow becomes "Miss". Confirm the
+x 8. Test: play without pressing. Confirm every arrow becomes "Miss". Confirm the
    next (dim) phrase's arrows do not fire early. Confirm the playhead stays
    within the bar bounds (clamp at 0% and 100%).
 
@@ -595,8 +595,8 @@ expression visibly. Results are shown at song end. Works on mobile and desktop.
 | 3 — Scheduler              | ✅ Complete  | 1 day               |
 | 4 — UI layout              | ✅ Complete | 2 days |
 | 5 — Lyric rendering        | ✅ Complete | 2 days          |
-| 6 — Playhead + miss        | 🔄 In progress | 2 days          |
-| 7 — Input + scoring        | Not started | 2–3 days        |
+| 6 — Playhead + miss        | ✅ Complete | 2 days          |
+| 7 — Input + scoring        | 🔄 In progress | 2–3 days        |
 | 8 — Singer + polish        | Not started | 3–4 days        |
 | Singer art (parallel)      | Not started | 1 week          |
 | Buffer / bug fixing        | —           | 3–4 days        |

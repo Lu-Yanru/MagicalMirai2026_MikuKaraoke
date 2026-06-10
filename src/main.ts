@@ -11,6 +11,7 @@
 
 import { Player, type IPlayerApp, type IVideo } from "textalive-app-api";
 import { buildSchedule } from "./game/scheduler";
+import { armCues, disarmCues } from "./ui/arrows";
 import { initLyrics, activatePhrase, updateLyrics } from "./ui/lyrics";
 import type { PhraseRow } from "./types";
 
@@ -67,7 +68,7 @@ let prevIsPlaying = false;
 // after requestPlay() returns. Without this guard, the timer briefly reports
 // a stale position that makes the playhead visually jump.
 let positionCooldownFrames = 0;
-const POSITION_COOLDOWN_FRAMES = 30; // ~133ms at 60fps — imperceptible to user
+const POSITION_COOLDOWN_FRAMES = 25; // ~133ms at 60fps — imperceptible to user
 
 // The last position value we computed and rendered. Held during cooldown.
 let lastRenderedPosition = 0;
@@ -197,34 +198,34 @@ player.addListener({
       // });
 
       // トリツクロジー / 鶴三
-      player.createFromSongUrl("https://piapro.jp/t/QBdL/20251215094303", {
-        video: {
-          // 音楽地図訂正履歴
-          beatId: 4827297,
-          chordId: 2963758,
-          repetitiveSegmentId: 3086265,
-      
-          // 歌詞URL: https://piapro.jp/t/Nixq
-          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FQBdL%2F20251215094303
-          lyricId: 126593,
-          lyricDiffId: 28630
-        },
-      });
-
-      // TAKEOVER / Twinfield
-      // player.createFromSongUrl("https://piapro.jp/t/E2i3/20251215092113", {
+      // player.createFromSongUrl("https://piapro.jp/t/QBdL/20251215094303", {
       //   video: {
       //     // 音楽地図訂正履歴
-      //     beatId: 4827298,
-      //     chordId: 2963759,
-      //     repetitiveSegmentId: 3086266,
+      //     beatId: 4827297,
+      //     chordId: 2963758,
+      //     repetitiveSegmentId: 3086265,
       
-      //     // 歌詞URL: https://piapro.jp/t/zxWP
-      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FE2i3%2F20251215092113
-      //     lyricId: 126533,
-      //     lyricDiffId: 28631
+      //     // 歌詞URL: https://piapro.jp/t/Nixq
+      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FQBdL%2F20251215094303
+      //     lyricId: 126593,
+      //     lyricDiffId: 28630
       //   },
       // });
+
+      // TAKEOVER / Twinfield
+      player.createFromSongUrl("https://piapro.jp/t/E2i3/20251215092113", {
+        video: {
+          // 音楽地図訂正履歴
+          beatId: 4827298,
+          chordId: 2963759,
+          repetitiveSegmentId: 3086266,
+      
+          // 歌詞URL: https://piapro.jp/t/zxWP
+          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FE2i3%2F20251215092113
+          lyricId: 126533,
+          lyricDiffId: 28631
+        },
+      });
     }
   },
 
@@ -306,6 +307,23 @@ player.addListener({
   // https://developer.textalive.jp/packages/textalive-app-api/interfaces/Timer.html#position
   onVideoSeekStart() { isSeeking = true;  },
   onVideoSeekEnd()   { isSeeking = false; },
+
+  // Rearm miss timeouts when playback resumes (or starts for the first time).
+  // armCues skips already-resolved cues, so replaying a partially-completed
+  // phrase only arms the cues that have not yet been hit or missed.
+  onPlay() {
+    if (phraseRows.length > 0) {
+      armCues(phraseRows[activeIndex], player.timer.position);
+    }
+  },
+
+  // Cancel all pending miss timeouts while the song is paused so they do not
+  // fire against a frozen timer. onPlay() will re-arm them on resume.
+  onPause() {
+    if (phraseRows.length > 0) {
+      disarmCues(phraseRows[activeIndex]);
+    }
+  },
 });
 
 // ─── onAppMediaChange listener ────────────────────────────────────────────────
@@ -401,6 +419,9 @@ function tick(): void {
       activeIsTop,
       true
     );
+
+    // Arm miss timeouts now that this row is the active one.
+    armCues(phraseRows[activeIndex], position);
 
     const newActive = phraseRows[activeIndex];
     if (newActive.coloredLayer) {
