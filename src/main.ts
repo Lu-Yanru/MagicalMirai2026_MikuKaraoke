@@ -625,6 +625,4 @@ function tick(): void {
 // for the lifetime of the page.
 tick();
 
-
-// TODO (Chunk 7):        Wire keyboard and touch input
 // TODO (Chunk 8):        Show start / end screens; update singer sprite
