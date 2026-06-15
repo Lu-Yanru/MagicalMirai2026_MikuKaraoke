@@ -159,19 +159,19 @@ player.addListener({
       // });
 
       // アフター・ザ・カーテン / Rulmry
-      player.createFromSongUrl("https://piapro.jp/t/zoqO/20251214200738", {
-        video: {
-          // 音楽地図訂正履歴
-          beatId: 4827294,
-          chordId: 2963755,
-          repetitiveSegmentId: 3086262,
+      // player.createFromSongUrl("https://piapro.jp/t/zoqO/20251214200738", {
+      //   video: {
+      //     // 音楽地図訂正履歴
+      //     beatId: 4827294,
+      //     chordId: 2963755,
+      //     repetitiveSegmentId: 3086262,
       
-          // 歌詞URL: https://piapro.jp/t/EVO2
-          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FzoqO%2F20251214200738
-          lyricId: 126591,
-          lyricDiffId: 28627
-        },
-      });
+      //     // 歌詞URL: https://piapro.jp/t/EVO2
+      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FzoqO%2F20251214200738
+      //     lyricId: 126591,
+      //     lyricDiffId: 28627
+      //   },
+      // });
 
       // シャッターチャンス / 夜未アガリ
       // player.createFromSongUrl("https://piapro.jp/t/PNpQ/20251209170719", {
@@ -219,19 +219,19 @@ player.addListener({
       // });
 
       // TAKEOVER / Twinfield
-      // player.createFromSongUrl("https://piapro.jp/t/E2i3/20251215092113", {
-      //   video: {
-      //     // 音楽地図訂正履歴
-      //     beatId: 4827298,
-      //     chordId: 2963759,
-      //     repetitiveSegmentId: 3086266,
+      player.createFromSongUrl("https://piapro.jp/t/E2i3/20251215092113", {
+        video: {
+          // 音楽地図訂正履歴
+          beatId: 4827298,
+          chordId: 2963759,
+          repetitiveSegmentId: 3086266,
       
-      //     // 歌詞URL: https://piapro.jp/t/zxWP
-      //     // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FE2i3%2F20251215092113
-      //     lyricId: 126533,
-      //     lyricDiffId: 28631
-      //   },
-      // });
+          // 歌詞URL: https://piapro.jp/t/zxWP
+          // 歌詞タイミング訂正履歴: https://textalive.jp/lyrics/piapro.jp%2Ft%2FE2i3%2F20251215092113
+          lyricId: 126533,
+          lyricDiffId: 28631
+        },
+      });
     }
   },
 
@@ -261,10 +261,10 @@ player.addListener({
         phrase: row.phrase.text,
         startTime: row.phrase.startTime,
         cues: row.cues.map((cue) => ({
-          beatTime: cue.beatTime,
-          char: cue.char.text,
+          beatTime:    cue.beatTime,
+          beatPos:     `${cue.beat.position + 1}/${cue.beat.length}`, // e.g. "1/4", "3/4"
           barPosition: Math.round(cue.barPosition),
-          direction: cue.direction,
+          direction:   cue.direction,
         })),
       }))
     );

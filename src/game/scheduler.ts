@@ -1,16 +1,52 @@
 /**
- * scheduler.ts — Beat-to-character mapping.
+ * scheduler.ts — Beat-based cue schedule builder.
  *
  * Exports buildSchedule(), which walks the song data loaded by the TextAlive
  * Player and produces a PhraseRow[] — one row per IPhrase, each containing the
- * CueEntry[] for beats that fall within that phrase's time range.
+ * CueEntry[] of beats selected to be arrow cues.
+ *
+ * Selection algorithm (per phrase):
+ *   1. Eligibility filter  — keeps only beats with sufficient lead time from
+ *                            phrase start, and excludes the last beat of each
+ *                            bar (the "upbeat"), which feels unnatural to press.
+ *   2. Density targeting   — determines how many cues to place based on how
+ *                            many eligible beats are available. Short phrases
+ *                            naturally receive fewer cues without any explicit
+ *                            length check.
+ *   3. Phase rotation      — cycles through three preferred-position sets every
+ *                            PHRASES_PER_PHASE phrases, so cues do not always
+ *                            land on the same beat of the bar:
+ *                              Phase 0 — downbeat only (position 0)
+ *                              Phase 1 — half-bar beat (beat 3 in 4/4)
+ *                              Phase 2 — backbeat positions (beat 2 in 4/4)
+ *                            If preferred positions yield no candidates, a
+ *                            fallback pass selects any eligible beat.
+ *   4. Spacing enforcement — no two cues within the same phrase closer than
+ *                            MIN_SPACING_MS apart.
  *
  * The schedule is built once in onVideoReady before playback starts, and is
  * then consumed by the lyric UI, game loop, and scoring system.
  */
 
-import type { IChar, IBeat, IPhrase, Player } from "textalive-app-api";
+import type { IBeat, IPhrase, Player } from "textalive-app-api";
 import type { CueEntry, Direction, PhraseRow } from "../types";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+// Minimum milliseconds from phrase start before a beat can receive a cue.
+// Ensures the player has time to see and react after the phrase bar goes active.
+const MIN_REACT_MS = 300;
+
+// Minimum milliseconds between any two cues within the same phrase.
+// Prevents cues clustering so tightly that they feel like frantic mashing.
+const MIN_SPACING_MS = 150;
+
+// How many consecutive phrases share the same preferred-position pattern before
+// rotating to the next phase. 2 = one musical call-and-response pair per phase.
+const PHRASES_PER_PHASE = 2;
+
+// Number of distinct selection phases in the rotation cycle.
+const PHASE_COUNT = 3;
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -22,30 +58,13 @@ import type { CueEntry, Direction, PhraseRow } from "../types";
  *
  * @param player — The live Player instance from main.ts.
  * @returns      — Ordered array of PhraseRow objects, one per IPhrase.
- *                 Phrases with no matching beats have an empty cues array.
+ *                 Phrases with insufficient eligible beats have an empty cues[].
  */
 export function buildSchedule(player: Player): PhraseRow[] {
-  // ── Step 2: Collect all IChar objects into a flat array ───────────────────
+  // ── Collect all IPhrase objects ───────────────────────────────────────────
   //
-  // player.video.firstChar is the head of a singly-linked list of IChar nodes.
-  // IChar.next is typed as IChar (narrows from IRenderingUnit) so no cast is
-  // needed when walking.
-  //
-  // IVideo.firstChar: https://developer.textalive.jp/packages/textalive-app-api/interfaces/IVideo.html
-  // IChar.next:       https://developer.textalive.jp/packages/textalive-app-api/interfaces/IChar.html
-  const chars: IChar[] = [];
-  let char: IChar = player.video.firstChar;
-  while (char) {
-    chars.push(char);
-    char = char.next;
-  }
-
-  // ── Step 3: Collect all IPhrase objects into a flat array ─────────────────
-  //
-  // player.video.firstPhrase is the head of a singly-linked list of IPhrase
-  // nodes. IPhrase.next is typed as IPhrase (narrows from IRenderingUnit) so
-  // no cast is needed.
-  //
+  // player.video.firstPhrase is the head of a singly-linked list.
+  // IPhrase.next narrows to IPhrase so no cast is needed.
   // IPhrase docs: https://developer.textalive.jp/packages/textalive-app-api/interfaces/IPhrase.html
   const phrases: IPhrase[] = [];
   let phrase: IPhrase = player.video.firstPhrase;
@@ -54,74 +73,14 @@ export function buildSchedule(player: Player): PhraseRow[] {
     phrase = phrase.next;
   }
 
-  // ── Step 4: Get the beats array from the song map ─────────────────────────
+  // ── Get the beats array from the song map ─────────────────────────────────
   //
-  // ISongMap.beats is IBeat[], each with a startTime in milliseconds.
-  // ISongMap docs: https://developer.textalive.jp/packages/textalive-app-api/interfaces/ISongMap.html
-  // IBeat docs:    https://developer.textalive.jp/packages/textalive-app-api/interfaces/IBeat.html
-  const beats = player.data.songMap.beats;
+  // IBeat.position — 0-based index of this beat within its bar.
+  // IBeat.length   — total beats in the bar (time signature numerator).
+  // IBeat docs: https://developer.textalive.jp/packages/textalive-app-api/interfaces/IBeat.html
+  const beats: IBeat[] = player.data.songMap.beats;
 
-  // ── Step 5: Match beats to characters ────────────────────────────────────
-  //
-  // For each beat, find the first unassigned char whose startTime falls within
-  // ±WINDOW_MS of the beat timestamp.
-  //
-  // Both arrays are in chronological order so charIndex only ever advances —
-  // O(n + m) rather than O(n * m).
-  //
-  // "Unassigned" is implicit: once charIndex advances past a char it can never
-  // be matched again, so no two cues share the same character.
-  //
-  // The Grand Prize song "こたえて" has chorus characters with 1ms duration.
-  // Their startTime values cluster so tightly that no unique beat falls within
-  // ±WINDOW_MS of each one — they are skipped naturally with no special casing.
-  const WINDOW_MS = 100;
-
-  // Intermediate: collect raw beat+char matches before grouping by phrase.
-  interface Match {
-    beatTime: number;
-    char: IChar;
-  }
-  const matches: Match[] = [];
-  let charIndex = 0;
-
-  for (const beat of beats) {
-    const beatTime = beat.startTime;
-
-    // Advance past chars that have already fallen before this beat's window.
-    while (
-      charIndex < chars.length &&
-      chars[charIndex].startTime < beatTime - WINDOW_MS
-    ) {
-      charIndex++;
-    }
-
-    // Check whether the next unvisited char is within the window.
-    if (
-      charIndex < chars.length &&
-      chars[charIndex].startTime <= beatTime + WINDOW_MS
-    ) {
-      matches.push({ beatTime, char: chars[charIndex] });
-      // Consume this char — it cannot be matched by a subsequent beat.
-      charIndex++;
-    }
-  }
-
-  // ── Steps 6 & 7: Build PhraseRow[], grouping CueEntry[] by phrase ─────────
-  //
-  // For each match, find which phrase owns that beatTime (startTime <= beatTime
-  // < endTime). Calculate barPosition as the beat's percentage position along
-  // the phrase's total duration. Assign a random direction.
-  //
-  // phraseIndex is used as a forward-only cursor over the phrases array.
-  // Because both matches and phrases are in chronological order, we never need
-  // to scan backwards.
-  //
-  // Phrases with no matching beats produce a PhraseRow with an empty cues[].
-  // They still need a PhraseRow entry so the lyric display can show the phrase
-  // text and advance through them correctly.
-
-  // Pre-build a PhraseRow for every phrase, with an empty cues array.
+  // ── Pre-build one PhraseRow per phrase with empty cue arrays ─────────────
   const phraseRows: PhraseRow[] = phrases.map((p) => ({
     phrase: p,
     cues: [],
@@ -131,57 +90,79 @@ export function buildSchedule(player: Player): PhraseRow[] {
     blinkBeats: [],
   }));
 
-  // Build a lookup: for each match, find its owning phrase row by index.
-  // phraseRowIndex walks forward only — same O(n + m) pattern as above.
-  let phraseRowIndex = 0;
+  // ── Select cues for each phrase ───────────────────────────────────────────
+  for (let phraseIndex = 0; phraseIndex < phraseRows.length; phraseIndex++) {
+    const row = phraseRows[phraseIndex];
+    const phraseStart = row.phrase.startTime;
+    const phraseEnd   = row.phrase.endTime;
 
-  for (const match of matches) {
-    // Advance to the phrase whose time range contains this beat.
-    while (
-      phraseRowIndex < phraseRows.length - 1 &&
-      match.beatTime >= phraseRows[phraseRowIndex].phrase.endTime
-    ) {
-      phraseRowIndex++;
+    // Step 1: All beats that fall strictly within this phrase's time range.
+    // beats[] is sorted ascending by startTime; filter preserves that order.
+    const phraseBeats = beats.filter(
+      (b) => b.startTime >= phraseStart && b.startTime < phraseEnd
+    );
+
+    // Step 2: Filter to eligible beats only.
+    //
+    //   Lead time: beat must start at least MIN_REACT_MS into the phrase so
+    //   the player has time to see and react after the bar becomes active.
+    //
+    //   Not upbeat: the last beat of each bar (position === length - 1) is
+    //   anticipatory — it leans into the next downbeat. Pressing it feels
+    //   like pressing too early, so we exclude it.
+    const eligibleBeats = phraseBeats.filter(
+      (b) =>
+        b.startTime - phraseStart >= MIN_REACT_MS &&
+        b.position !== b.length - 1
+    );
+
+    // Step 3: Target cue count based on eligible beat count.
+    // Short phrases naturally yield fewer eligible beats (lead-time filter),
+    // so they receive fewer cues without any explicit phrase-length check.
+    const targetCount = getTargetCount(eligibleBeats.length);
+    if (targetCount === 0) continue;
+
+    // Step 4: Determine which beat positions to prefer for this phrase.
+    // Use the first eligible beat's bar length as representative for the phrase
+    // (time-signature changes mid-phrase are rare enough to ignore).
+    const barLength = eligibleBeats[0].length;
+    const phase = Math.floor(phraseIndex / PHRASES_PER_PHASE) % PHASE_COUNT;
+    const preferredPositions = getPreferredPositions(phase, barLength);
+
+    // Step 5: Select up to targetCount beats, preferring chosen positions and
+    // enforcing a minimum gap between any two selected beats.
+    const selected = selectBeats(
+      eligibleBeats,
+      targetCount,
+      preferredPositions,
+      MIN_SPACING_MS
+    );
+
+    // Step 6: Build a CueEntry for each selected beat.
+    for (const beat of selected) {
+      // barPosition: how far into the phrase this beat falls, as a 0–100 pct.
+      const barPosition =
+        ((beat.startTime - phraseStart) / (phraseEnd - phraseStart)) * 100;
+
+      const cue: CueEntry = {
+        beatTime:    beat.startTime,
+        beat,                         // IBeat reference — carries .position, .length
+        barPosition,
+        direction:   randomDirection(),
+        element:     null,
+        timeoutId:   null,
+        resolved:    false,
+      };
+
+      row.cues.push(cue);
     }
-
-    const row = phraseRows[phraseRowIndex];
-
-    // Guard: only add the cue if the beat actually falls within this phrase.
-    // A beat that falls in a gap between phrases is discarded.
-    if (
-      match.beatTime < row.phrase.startTime ||
-      match.beatTime >= row.phrase.endTime
-    ) {
-      continue;
-    }
-
-    // Step 6: Calculate barPosition (0–100) for this beat within its phrase.
-    const barPosition =
-      ((match.beatTime - row.phrase.startTime) /
-        (row.phrase.endTime - row.phrase.startTime)) *
-      100;
-
-    const cue: CueEntry = {
-      beatTime: match.beatTime,
-      char: match.char,
-      barPosition,
-      direction: randomDirection(),
-      element: null,
-      timeoutId: null,
-      resolved: false,
-    };
-
-    row.cues.push(cue);
   }
 
-  // ── Blink beat schedule ──────────────────────────────────────────────────
-  // For each phrase, find the beats in the one bar immediately before the
-  // phrase starts. These are the timestamps at which the waiting playhead
-  // will flash in tick(), giving the player a count-in before the phrase.
+  // ── Build blink beat schedule for each phrase ─────────────────────────────
   //
-  // We use IBeat.position (0-based index within bar) and IBeat.length (number
-  // of beats in the bar) to identify bar boundaries without assuming a fixed
-  // time signature, so tempo and time signature changes mid-song are handled.
+  // blinkBeats[] holds the timestamps of the one bar of beats immediately
+  // before each phrase starts. tick() uses these to flash the waiting playhead
+  // so the player gets a visual count-in before the phrase goes active.
   for (const row of phraseRows) {
     row.blinkBeats = buildBlinkBeats(row.phrase.startTime, beats);
   }
@@ -191,10 +172,134 @@ export function buildSchedule(player: Player): PhraseRow[] {
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
-// Step 8: Return one of the four Direction values chosen uniformly at random.
-//
-// Math.random() produces [0, 1). Multiplying by 4 and flooring gives 0, 1, 2,
-// or 3 with equal probability, which we index into the DIRECTIONS array.
+/**
+ * Target cue count for a phrase based on how many eligible beats it contains.
+ *
+ * Thresholds chosen so that:
+ *   0–1 eligible  — phrase is too short or sparse; skip entirely
+ *   2–3 eligible  — 1 cue (manageable for a brief phrase)
+ *   4–6 eligible  — 2 cues (standard density)
+ *   7+  eligible  — 3 cues (reserved for long phrases)
+ */
+function getTargetCount(eligibleCount: number): number {
+  if (eligibleCount <= 1) return 0;
+  if (eligibleCount <= 3) return 1;
+  if (eligibleCount <= 6) return 2;
+  return 3;
+}
+
+/**
+ * Return the set of beat positions to prefer for this phase.
+ *
+ * Three phases create three distinct rhythmic feels as they rotate:
+ *
+ *   Phase 0 — downbeat only (position 0)
+ *             Solid, grounding. Cues always land on beat 1 of a bar.
+ *
+ *   Phase 1 — half-bar beat only (position floor(length/2))
+ *             Beat 3 in 4/4, beat 2 in 3/4. Driving, offsets from phase 0.
+ *
+ *   Phase 2 — backbeat positions (between 0 and floor(length/2), exclusive)
+ *             Beat 2 in 4/4. Syncopated feel.
+ *             Falls back to [0] for short time signatures (≤ 3/4) where no
+ *             positions exist between the downbeat and the half-bar mark.
+ *
+ * If a phase produces no candidates from eligibleBeats, selectBeats() fills
+ * the remaining slots from any eligible beat via its pass-2 fallback.
+ *
+ * @param phase     — Current rotation phase index (0, 1, or 2).
+ * @param barLength — Number of beats in the bar (IBeat.length).
+ */
+function getPreferredPositions(phase: number, barLength: number): number[] {
+  const mid = Math.floor(barLength / 2);
+
+  switch (phase) {
+    case 0:
+      // Downbeat.
+      return [0];
+
+    case 1:
+      // Half-bar beat. If mid === 0 (pathological barLength 1), fall back.
+      return mid > 0 ? [mid] : [0];
+
+    case 2: {
+      // Positions strictly between the downbeat (0) and half-bar (mid).
+      // In 4/4: [1] (beat 2). In 6/8: [1, 2]. In 3/4 or 2/4: none → [0].
+      const backbeats: number[] = [];
+      for (let p = 1; p < mid; p++) backbeats.push(p);
+      return backbeats.length > 0 ? backbeats : [0];
+    }
+
+    default:
+      return [0];
+  }
+}
+
+/**
+ * Select up to targetCount beats from the eligible list.
+ *
+ * Pass 1 — collect beats whose position is in preferredPositions, respecting
+ *           the minimum spacing between any two selected beats.
+ * Pass 2 — if still below targetCount, collect any remaining eligible beat
+ *           that satisfies the spacing constraint (fallback for sparse phases).
+ *
+ * Spacing is checked against ALL already-selected beats (not just the most
+ * recent), because pass 1 can place beats at non-adjacent time positions,
+ * leaving gaps that a pass-2 candidate might fall into.
+ *
+ * Returns the selected beats sorted ascending by startTime. The sort is needed
+ * because pass 2 may insert earlier beats after later ones already selected in
+ * pass 1.
+ *
+ * @param eligible           — Eligible beats for this phrase, in time order.
+ * @param targetCount        — Maximum number of beats to select.
+ * @param preferredPositions — Beat positions to prioritise in pass 1.
+ * @param minSpacingMs       — Minimum gap [ms] between any two selected beats.
+ */
+function selectBeats(
+  eligible: IBeat[],
+  targetCount: number,
+  preferredPositions: number[],
+  minSpacingMs: number
+): IBeat[] {
+  const selected: IBeat[] = [];
+  const selectedSet = new Set<IBeat>();
+
+  // Attempt to add a beat. Silently skips if already selected or too close to
+  // any beat already in the selection.
+  function tryAdd(beat: IBeat): void {
+    if (selectedSet.has(beat)) return;
+    const tooClose = selected.some(
+      (s) => Math.abs(s.startTime - beat.startTime) < minSpacingMs
+    );
+    if (!tooClose) {
+      selected.push(beat);
+      selectedSet.add(beat);
+    }
+  }
+
+  // Pass 1: preferred positions only.
+  for (const beat of eligible) {
+    if (selected.length >= targetCount) break;
+    if (preferredPositions.includes(beat.position)) tryAdd(beat);
+  }
+
+  // Pass 2: fill remaining slots from any eligible beat.
+  for (const beat of eligible) {
+    if (selected.length >= targetCount) break;
+    tryAdd(beat); // tryAdd skips beats already in selectedSet
+  }
+
+  // Re-sort ascending by startTime. Pass 2 may have inserted an earlier beat
+  // after a later one already chosen by pass 1.
+  selected.sort((a, b) => a.startTime - b.startTime);
+
+  return selected;
+}
+
+/**
+ * Return one of the four Direction values chosen uniformly at random.
+ */
 const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
 
 function randomDirection(): Direction {
@@ -205,29 +310,24 @@ function randomDirection(): Direction {
 
 /**
  * Return the beats that form the one complete bar immediately before
- * phraseStartTime. These are used as blink timestamps for the waiting playhead.
+ * phraseStartTime. tick() uses these timestamps to flash the waiting playhead,
+ * giving the player a visual count-in before the phrase goes active.
  *
  * Strategy:
- *   1. Find the beat whose time range contains phraseStartTime, or the last
- *      beat before it if phraseStartTime falls in a gap.
- *   2. Walk backwards by exactly beat.length steps (one full bar).
- *   3. Collect those beats in ascending order.
- *   4. If fewer than beat.length beats exist before the phrase (song starts
- *      too early), return however many are available (rule: blink for however
- *      many beats are available).
- *   5. Stop collecting if a beat's startTime >= phraseStartTime (rule b:
- *      stop blinking when phrase starts).
+ *   1. Binary-search for the last beat at or before phraseStartTime.
+ *   2. Walk backwards by beat.length steps (one full bar).
+ *   3. Return those beats in ascending order.
+ *   4. Exclude any beat whose startTime >= phraseStartTime (rule b).
+ *   5. If fewer than beat.length beats exist before the phrase, return however
+ *      many are available.
  *
- * @param phraseStartTime - The startTime [ms] of the phrase.
- * @param beats           - The full IBeat[] array from ISongMap, in order.
- * @returns               - IBeat[] for the count-in bar, ascending by startTime.
+ * @param phraseStartTime — The startTime [ms] of the phrase.
+ * @param beats           — Full IBeat[] from ISongMap, ascending by startTime.
  */
 function buildBlinkBeats(phraseStartTime: number, beats: IBeat[]): IBeat[] {
   if (beats.length === 0) return [];
 
-  // ── Step 1: Find the beat at or just before phraseStartTime ───────────────
-  // Binary search for the last beat whose startTime <= phraseStartTime.
-  // We want the beat the phrase "lands on" or just after.
+  // Binary search: last beat whose startTime <= phraseStartTime.
   let lo = 0;
   let hi = beats.length - 1;
   let anchorIndex = -1;
@@ -242,29 +342,16 @@ function buildBlinkBeats(phraseStartTime: number, beats: IBeat[]): IBeat[] {
     }
   }
 
-  // No beat at or before phraseStartTime — nothing to blink.
   if (anchorIndex < 0) return [];
 
-  // ── Step 2: Determine how many beats to walk back (one full bar) ──────────
-  // IBeat.length is the number of beats in the bar containing that beat.
-  // We use the anchor beat's bar length as the count-in length.
-  // If the time signature changes mid-song, each beat carries its own .length,
-  // so the bar immediately before the phrase uses the correct value.
+  // Walk back by one full bar (beat.length steps).
   const barLength = beats[anchorIndex].length;
-
-  // ── Step 3: Collect the barLength beats ending at anchorIndex ─────────────
-  // Walk backwards from anchorIndex, collecting up to barLength beats.
-  // Stop early if we run out of beats (beginning of song).
   const result: IBeat[] = [];
 
   for (let i = anchorIndex; i >= 0 && result.length < barLength; i--) {
     const beat = beats[i];
-
-    // Rule b: don't include beats that start at or after the phrase start.
-    // In practice anchorIndex already satisfies this, but guard explicitly.
-    if (beat.startTime >= phraseStartTime) continue;
-
-    result.unshift(beat); // prepend to keep ascending order
+    if (beat.startTime >= phraseStartTime) continue; // rule b: stop at phrase start
+    result.unshift(beat); // prepend to maintain ascending order
   }
 
   return result;

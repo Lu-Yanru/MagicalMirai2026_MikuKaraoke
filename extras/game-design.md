@@ -77,18 +77,42 @@ player can preview upcoming arrows.
 
 ### Beat-to-Phrase Mapping
 
-At load time (`onVideoReady`), a schedule is built by walking the beat list and
-the character list together:
+At load time (`onVideoReady`), a beat-based schedule is built per phrase using a
+four-layer selection algorithm. Character timing is no longer involved — cues are
+placed on beats selected entirely by musical position and timing constraints.
 
-- A beat receives an arrow cue only if a character **starts** within ±100ms of
-  that beat timestamp.
-- Beats that fall within the duration of an ongoing character (between its
-  `startTime` and `endTime`) are skipped — no cue is generated.
-- This ensures no two cues share the same character and no cue appears
-  mid-character on a held note.
+**Layer 1 — Eligibility filter**
+A beat is eligible for a cue only if:
+- It starts at least 350 ms into the phrase (gives the player time to see and
+  react after the bar becomes active).
+- It is not the last beat of its bar (`IBeat.position !== IBeat.length − 1`).
+  The last beat of a bar is anticipatory and feels wrong to press on.
 
-Each cue entry records: `beatTime`, `phraseIndex`, `barPosition` (0–100%
-along the bar), `direction`, and `resolved` state.
+**Layer 2 — Density targeting**
+Target cue count is based on eligible beat count, not phrase duration. Short
+phrases naturally fail the lead-time filter and receive fewer eligible beats:
+- 0–1 eligible beats → 0 cues
+- 2–3 eligible beats → 1 cue
+- 4–6 eligible beats → 2 cues
+- 7+ eligible beats  → 3 cues
+
+**Layer 3 — Phase rotation**
+To prevent cues always landing on the same beat of the bar, preferred positions
+rotate every 2 phrases through three phases:
+- Phase 0 — downbeat only (`position 0`): solid, grounding
+- Phase 1 — half-bar beat (`position floor(length/2)`, beat 3 in 4/4): driving
+- Phase 2 — backbeat (`positions between 0 and floor(length/2)`, beat 2 in 4/4): syncopated
+
+If a phase yields no candidates from the eligible set, a fallback pass selects
+any eligible beat with spacing enforced.
+
+**Layer 4 — Spacing enforcement**
+No two cues within the same phrase may be closer than 300 ms apart. This
+prevents cues clustering at the start of a long phrase.
+
+Each cue entry records: `beatTime`, `beat` (IBeat reference supplying
+`.position` and `.length`), `barPosition` (0–100% along the bar), `direction`,
+and `resolved` state.
 
 ### Input
 

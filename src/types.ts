@@ -8,7 +8,7 @@
  * local to this project.
  */
 
-import type { IChar, IBeat, IPhrase } from "textalive-app-api";
+import type { IBeat, IPhrase } from "textalive-app-api";
 
 // ─── Input ────────────────────────────────────────────────────────────────────
 
@@ -35,42 +35,39 @@ export type RatingType = "Perfect" | "Great" | "Good" | "Bad" | "Miss";
 /**
  * One arrow cue entry in the schedule built by scheduler.ts.
  *
- * The scheduler creates one CueEntry per beat that coincides with the start
- * of a new lyric character (within ±100 ms). Each entry tracks its own
- * lifecycle from creation through resolution.
+ * The scheduler creates one CueEntry per selected beat within a phrase,
+ * chosen by the beat-based selection algorithm (eligibility filter →
+ * density targeting → phase rotation → spacing enforcement).
  *
  * Fields:
- *   beatTime   — The beat timestamp in milliseconds from the TextAlive API.
- *                This is the "target" time the player aims to press on.
- *   char       — The IChar object whose startTime matched this beat. Used by
- *                the UI layer to position the arrow overlay on the correct
- *                character span.
+ *   beatTime   — The beat's startTime in milliseconds. This is the "target"
+ *                time the player aims to press on; used for hit detection.
+ *   beat       — The IBeat object this cue is tied to. Carries .position
+ *                (0-based index within the bar) and .length (beats per bar),
+ *                useful for debugging and any future scoring nuance.
  *   direction  — One of the four directions, randomly assigned at schedule
  *                build time (before playback starts).
+ *   barPosition — 0–100 left% position along the phrase's cue bar, calculated
+ *                as (beatTime − phrase.startTime) / phraseDuration × 100.
  *   element    — The live <div> for the on-screen arrow/rating display.
- *                null before the cue is spawned, null again after it is
- *                removed from the DOM.
+ *                null before the phrase is activated, null again after the
+ *                rated element is removed from the DOM.
  *   timeoutId  — Handle returned by setTimeout() for the miss deadline.
- *                Stored so we can clearTimeout() on a successful hit before
- *                the miss fires.
- *   resolved   — True once this cue has been rated (either by a player press
- *                or by the miss timeout). Guards against double-scoring.
+ *                Cleared via clearTimeout() on a successful player hit.
+ *   resolved   — True once this cue has been rated (player press or miss
+ *                timeout). Guards against double-scoring.
  *
- * Note on IChar.next typing:
- *   IChar overrides `.next` from its parent ITextUnit and narrows the type to
- *   IChar (likewise `.previous: IChar` and `.parent: IWord`). No cast is needed
- *   when walking the linked list — `char = char.next` is type-safe as-is.
- *   Verified against the live API docs:
- *   https://developer.textalive.jp/packages/textalive-app-api/interfaces/IChar.html
+ * IBeat docs:
+ *   https://developer.textalive.jp/packages/textalive-app-api/interfaces/IBeat.html
  */
 export interface CueEntry {
   beatTime: number;
-  char: IChar;
+  beat: IBeat;          // carries .position and .length for the owning bar
   direction: Direction;
+  barPosition: number;  // 0–100, left% position on the phrase's cue bar
   element: HTMLElement | null;
   timeoutId: number | null;
   resolved: boolean;
-  barPosition: number; // 0–100, left% position on the phrase's cue bar
 }
 
 // ─── Phrase rows ──────────────────────────────────────────────────────────────

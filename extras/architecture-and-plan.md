@@ -100,8 +100,8 @@ export type Direction = 'up' | 'down' | 'left' | 'right';
 export type RatingType = 'Perfect' | 'Great' | 'Good' | 'Bad' | 'Miss';
 
 export interface CueEntry {
-  beatTime: number;             // ms — beat timestamp from API, used for hit detection
-  phraseIndex: number;          // index of the phrase this cue belongs to
+  beatTime: number;             // ms — beat timestamp, the player's press target
+  beat: IBeat;                  // IBeat reference; carries .position and .length
   barPosition: number;          // 0–100 — left% position on the phrase's cue bar
   direction: Direction;         // randomly assigned at schedule build time
   element: HTMLElement | null;  // the cue <div> on the bar, set when phrase is activated
@@ -182,29 +182,52 @@ x 7. Add `onAppMediaChange` listener to confirm lifecycle is wired correctly.
 
 ---
 
-### ✅ Chunk 3 — Beat-to-character mapping (scheduler) (complete)
+### ✅ Chunk 3 — Beat-based cue scheduler (complete; redesigned post-Chunk 5)
 
 **Goal**: `scheduler.ts` produces a `PhraseRow[]` array with pre-calculated
-`CueEntry[]` per phrase. Logged and manually verified.
+`CueEntry[]` per phrase. Cues are placed on beats selected by musical position
+and timing constraints — no character matching.
+
+**Redesign rationale**: the original character-matching approach was a proxy for
+"place cues where lyrics start." After per-character clip-path color fill was
+implemented in Chunk 5, cues are visually decoupled from character timing, so
+the character constraint was removed in favour of a beat-based algorithm that
+gives more musical control and variety.
+
+#### Algorithm summary
+
+For each phrase, four layers run in sequence:
+
+1. **Eligibility filter** — beats must have ≥ 350 ms lead time from phrase start
+   and must not be the last beat of their bar (`position !== length − 1`).
+2. **Density targeting** — 0–1 eligible → 0 cues; 2–3 → 1; 4–6 → 2; 7+ → 3.
+3. **Phase rotation** — preferred positions cycle every 2 phrases:
+   Phase 0 = downbeat, Phase 1 = half-bar beat, Phase 2 = backbeat.
+   Fallback pass uses any eligible beat if preferred positions yield nothing.
+4. **Spacing** — no two selected beats closer than 300 ms.
+
+#### Constants (all in `scheduler.ts`, easy to tune)
+
+| Constant | Value | Purpose |
+|---|---|---|
+| `MIN_REACT_MS` | 350 | Minimum lead time from phrase start |
+| `MIN_SPACING_MS` | 300 | Minimum gap between cues in same phrase |
+| `PHRASES_PER_PHASE` | 2 | Phrases per rotation step |
+| `PHASE_COUNT` | 3 | Number of rotation phases |
 
 #### Steps
 
 x 1. Create `src/game/scheduler.ts` exporting `buildSchedule(player): PhraseRow[]`.
-x 2. Convert `player.video.firstChar` linked list to an array by walking `.next`.
-x 3. Convert `player.video.firstPhrase` linked list to an array by walking `.next`.
-x 4. Get beats from `player.data.songMap.beats` (verify property name against
-     API docs — do not assume).
-x 5. For each beat, find a character whose `startTime` is within ±100ms of the
-     beat timestamp and has not already been assigned. Skip beats that fall
-     within an ongoing character's `startTime`–`endTime` range.
-x 6. For matched beats, create a `CueEntry` with a random direction,
-     `resolved: false`, and `barPosition` calculated as:
-     `(beatTime - phrase.startTime) / (phrase.endTime - phrase.startTime) * 100`
-x 7. Group `CueEntry[]` by phrase into `PhraseRow[]`.
-x 8. Add helper `randomDirection(): Direction`.
-x 9. Call `buildSchedule(player)` in `onVideoReady` and log the result.
-x 10. Manually verify 5–10 entries against lyrics and tempo.
-x 11. Confirm the "こたえて" chorus 1ms-timing characters are naturally skipped.
+x 2. Convert `player.video.firstPhrase` linked list to an array by walking `.next`.
+x 3. Get beats from `player.data.songMap.beats`.
+x 4. For each phrase, collect beats in its time range, then filter to eligible set.
+x 5. Compute target cue count from eligible beat count.
+x 6. Compute preferred positions from phase index and bar length.
+x 7. Select beats: pass 1 (preferred positions + spacing), pass 2 (any + spacing).
+x 8. Create `CueEntry` for each selected beat with `barPosition` and random direction.
+x 9. Build `blinkBeats[]` for each phrase (one bar of beats before phrase start).
+x 10. Call `buildSchedule(player)` in `onVideoReady` and log result showing
+      beat positions as "beat/total" (e.g. "3/4") for manual verification.
 
 ---
 
@@ -533,8 +556,8 @@ expression visibly. Results are shown at song end. Works on mobile and desktop.
 
 2. Implement state logic:
    - `idle`: no `lastRating` yet (before first cue)
-   - `happy`: `lastRating === 'Perfect'` or `combo >= 10`
-   - `singing`: `combo > 0` and `combo < 10`
+   - `happy`: `lastRating === 'Perfect'` or `combo >= 20`
+   - `singing`: `combo > 0` and `combo < 20`
    - `sad`: `lastRating === 'Miss'` or `lastRating === 'Bad'` or `combo === 0`
    - Default (otherwise): `singing` or `happy` based on combo threshold
 
@@ -596,9 +619,9 @@ expression visibly. Results are shown at song end. Works on mobile and desktop.
 | 4 — UI layout              | ✅ Complete | 2 days |
 | 5 — Lyric rendering        | ✅ Complete | 2 days          |
 | 6 — Playhead + miss        | ✅ Complete | 2 days          |
-| 7 — Input + scoring        | 🔄 In progress | 2–3 days        |
-| 8 — Singer + polish        | Not started | 3–4 days        |
-| Singer art (parallel)      | Not started | 1 week          |
+| 7 — Input + scoring        | ✅ Complete | 2–3 days        |
+| 8 — Singer + polish        | 🔄 In progress | 3–4 days        |
+| Singer art (parallel)      | 🔄 In progress | 1 week          |
 | Buffer / bug fixing        | —           | 3–4 days        |
 
 **~4 weeks of focused part-time work.**
