@@ -13,6 +13,12 @@
  *     player sees on screen. Both are driven by the same value in main.ts.
  *   - applyRating() dispatches a snapshot of ScoreState, not a reference to
  *     the live state object, so listeners always read the value at dispatch time.
+ *
+ * Chunk 8 addition:
+ *   - lastRating field tracks the most recently resolved RatingType (or null
+ *     before the first cue resolves). Included in the scoreupdate event detail
+ *     so main.ts can pass it to getSingerState() without importing scoring.ts
+ *     internals.
  */
 
 import { resolveCue } from "../ui/rating";
@@ -55,6 +61,12 @@ export class ScoreManager {
       Miss:    0,
     },
   };
+
+  // ── Chunk 8: lastRating ──────────────────────────────────────────────────
+  // Tracks the most recently resolved rating so getSingerState() in singer.ts
+  // can differentiate "idle before first cue" (null) from "combo just reset to
+  // zero after a Miss" (non-null). Set to null at game start and after reset().
+  lastRating: RatingType | null = null;
 
   // ── handleInput ─────────────────────────────────────────────────────────────
 
@@ -145,14 +157,22 @@ export class ScoreManager {
     // ── Count ───────────────────────────────────────────────────────────────
     s.counts[rating] += 1;
 
+    // ── Chunk 8: track last rating ───────────────────────────────────────────
+    // Updated here (after combo is recalculated) so getSingerState() in main.ts
+    // always sees both the updated combo and the triggering rating together.
+    this.lastRating = rating;
+
     // ── Dispatch snapshot ───────────────────────────────────────────────────
     // Spread both the top-level state and the nested counts record so the
     // listener receives a plain object frozen at this moment, not a live ref.
+    // Chunk 8: lastRating is included in the detail so main.ts can derive
+    // singer state without accessing scoreManager internals directly.
     document.dispatchEvent(
       new CustomEvent("scoreupdate", {
         detail: {
           ...s,
           counts: { ...s.counts },
+          lastRating: this.lastRating,   // Chunk 8 addition
         },
       })
     );

@@ -551,27 +551,27 @@ expression visibly. Results are shown at song end. Works on mobile and desktop.
 
 #### Steps
 
-1. Create `src/game/singer.ts` exporting:
+x 1. Create `src/game/singer.ts` exporting:
    - `getSingerState(state: ScoreState, lastRating: RatingType | null): SingerState`
 
-2. Implement state logic:
+x 2. Implement state logic:
    - `idle`: no `lastRating` yet (before first cue)
    - `happy`: `lastRating === 'Perfect'` or `combo >= 20`
    - `singing`: `combo > 0` and `combo < 20`
    - `sad`: `lastRating === 'Miss'` or `lastRating === 'Bad'` or `combo === 0`
    - Default (otherwise): `singing` or `happy` based on combo threshold
 
-3. In `main.ts`, listen for `scoreupdate`. On each event, call `getSingerState`
+x 3. In `main.ts`, listen for `scoreupdate`. On each event, call `getSingerState`
    and update `<img id="singer">` src to the matching asset path. If the state
    changed, add CSS class `singer-bounce` to the img and remove it after the
    animation ends (`animationend` event listener, `{ once: true }`).
 
-4. Add singer sprite images to `assets/singer/`. Use clearly labeled placeholder
+x 4. Add singer sprite images to `assets/singer/`. Use clearly labeled placeholder
    colored rectangles if final art is not ready — swap in real art later. The
    images should be portrait-oriented so `object-fit: cover` keeps the face
    visible.
 
-5. Add CSS for singer bounce:
+x 5. Add CSS for singer bounce:
    ```css
    @keyframes singerBounce {
      0%   { transform: scale(1); }

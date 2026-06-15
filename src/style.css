@@ -329,3 +329,41 @@ body {
   white-space: nowrap;
   pointer-events: none;
 }
+
+/* ─── Singer bounce animation (Chunk 8 step 3) ───────────────────────────────
+   Triggered by adding .singer-bounce to #singer in main.ts whenever the singer
+   state changes (idle → happy, happy → sad, etc.).
+
+   The animation is a gentle scale pulse: the singer pops slightly larger then
+   returns to normal. 200ms matches the plan spec. ease-out means the return
+   to scale(1) is smooth rather than abrupt.
+
+   The class is added programmatically and removed on animationend via a
+   { once: true } listener, so the animation plays exactly once per state
+   change and does not linger as a permanent class.
+
+   Note: #singer has no other transform applied (it uses object-fit: cover for
+   sizing), so the keyframe transform does not need to preserve any existing
+   translate/rotate. If a translate is added to #singer in future, the
+   keyframes must be updated to include it explicitly — CSS keyframe animations
+   replace the full transform property, not just the scale component.          */
+@keyframes singerBounce {
+  0%   { transform: scale(1);    }
+  50%  { transform: scale(1.04); }
+  100% { transform: scale(1);    }
+}
+
+.singer-bounce {
+  animation: singerBounce 200ms ease-out;
+}
+
+@keyframes headShake {
+  0%, 100% { transform: rotate(0deg); }
+  25%       { transform: rotate(-4deg); }
+  75%       { transform: rotate(4deg); }
+}
+
+@keyframes armSwing {
+  0%, 100% { transform: rotate(0deg); }
+  50%       { transform: rotate(-25deg); }
+}
