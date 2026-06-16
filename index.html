@@ -9,21 +9,24 @@
     -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>Rhythm Lyric Game — Magical Mirai 2026</title>
-    <script type="module" crossorigin src="/MagicalMirai2026_MikuKaraoke/assets/index-ChGIWlIL.js"></script>
-    <link rel="stylesheet" crossorigin href="/MagicalMirai2026_MikuKaraoke/assets/index-Dg5J32DV.css">
+    <script type="module" crossorigin src="/MagicalMirai2026_MikuKaraoke/assets/index-0g_aY0Cp.js"></script>
+    <link rel="stylesheet" crossorigin href="/MagicalMirai2026_MikuKaraoke/assets/index-CP4VqRX_.css">
   </head>
   <body>
 
     <!--
-      Two top-level elements: #hud (8% height) and #stage (92% height).
-      They are siblings — #stage is NOT inside #hud.
-      This matches the layout diagram in game-design.md exactly.
+      Three siblings stack vertically to fill 100vh with no overlap possible:
+        #hud       —  8vh — top bar
+        #stage     — 72vh — singer + lyric overlay
+        #input-pad — 20vh — directional buttons
+
+      #input-pad is a sibling of #stage (NOT a child), identical in structure
+      to #hud. This guarantees the pad never overlaps the lyric overlay on any
+      screen size — the three sections share 100vh by normal block flow, not
+      by z-index stacking.
     -->
 
-    <!-- ── HUD ──────────────────────────────────────────────────────────────
-         Top bar: song title on the left, score and combo on the right.
-         #btn-play is the playback toggle (introduced in Chunk 2, permanent here).
-         All three stat elements start empty; main.ts fills them at runtime.    -->
+    <!-- ── HUD (8vh) ──────────────────────────────────────────────────────── -->
     <header id="hud">
       <span id="song-title">—</span>
       <div id="hud-stats">
@@ -33,48 +36,43 @@
       <button id="btn-play" aria-label="Play or pause the song">▶ Play</button>
     </header>
 
-    <!-- ── Stage ─────────────────────────────────────────────────────────────
-         Full-height container (92vh). position: relative makes it the
-         containing block for all absolutely-positioned children below.
-         Three children stack in z-order: singer (0) → overlay (1) → pad (2). -->
+    <!-- ── Stage (72vh) ──────────────────────────────────────────────────── -->
     <div id="stage">
 
-      <!-- Singer sprite fills the entire stage background.
-           src is empty until Chunk 8 adds real art; a placeholder rectangle
-           is added via CSS background-color on #stage for now.
-           object-fit: cover / object-position: center top (set in CSS) keeps
-           the character's face visible above the overlay at all aspect ratios. -->
-      <img id="singer" src="" alt="Singer character" />
+      <!--
+        Singer sprite — layered parts composited via CSS absolute positioning.
+        All six <img> elements share the same 1673×1816 canvas coordinate space,
+        so stacking them at top:0 left:0 width:100% height:100% reproduces the
+        original Procreate layer order exactly with no offset math needed.
 
-      <!-- ── Lyric overlay ────────────────────────────────────────────────────
-           Semi-transparent box pinned to the bottom ~55% of #stage.
-           Contains two phrase rows stacked vertically: active (top) and next
-           (bottom). Both rows are always visible so the player can read ahead.
+        Layer order (bottom → top, matching painter's algorithm):
+          body          — torso, clothes, legs: the base of the character
+          arm_left_down — left arm in resting position
+          arm_right     — right arm holding microphone
+          pigtail_left  — left pigtail: behind head, in front of arms
+          pigtail_right — right pigtail: same z-level as pigtail_left
+          head_idle     — head + face: topmost layer, drawn over everything
 
-           Each phrase row has:
-             - a text container (#phrase-*-text) — two overlapping divs produce
-               the dim base + teal clip-path fill effect (Chunk 5)
-             - a cue bar (.bar-track) — the horizontal track the playhead dot
-               and arrow cue divs sit on                                         -->
+        data-layer attributes allow JS to target individual layers for src
+        swaps (head expression changes) and CSS animation classes (arm swing).
+      -->
+      <div id="singer-container" aria-label="Singer character">
+        <img id="singer-body"          class="singer-layer" src="/MagicalMirai2026_MikuKaraoke/assets/body-BMGvvjzF.png"          alt="" aria-hidden="true" data-layer="body" />
+        <img id="singer-pigtail-left"  class="singer-layer" src="/MagicalMirai2026_MikuKaraoke/assets/pigtail_left-MI8Qh_EN.png"  alt="" aria-hidden="true" data-layer="pigtail-left" />
+        <img id="singer-pigtail-right" class="singer-layer" src="/MagicalMirai2026_MikuKaraoke/assets/pigtail_right-fRXdzuvx.png" alt="" aria-hidden="true" data-layer="pigtail-right" />
+        <img id="singer-arm-left"      class="singer-layer" src="/MagicalMirai2026_MikuKaraoke/assets/arm_left_down-x2aSA2Pn.png" alt="" aria-hidden="true" data-layer="arm-left" />
+        <img id="singer-arm-right"     class="singer-layer" src="/MagicalMirai2026_MikuKaraoke/assets/arm_right-BK8sK201.png"     alt="" aria-hidden="true" data-layer="arm-right" />
+        <img id="singer-head"          class="singer-layer" src="/MagicalMirai2026_MikuKaraoke/assets/head_idle-D4ExwO0K.png"      alt="" aria-hidden="true" data-layer="head" />
+      </div>
+
+      <!-- ── Lyric overlay ──────────────────────────────────────────────── -->
       <div id="lyric-overlay" class="hidden">
 
-        <!-- Top row: the phrase currently being sung (active) -->
         <div id="phrase-top">
           <div id="phrase-top-text" class="phrase-text-wrap">
-            <!--
-              Placeholder: two stacked divs previewing the clip-path color fill.
-              Both contain the same sample Japanese text. The colored (teal) div
-              uses clip-path: inset(0 40% 0 0) to show ~60% filled.
-              lyrics.ts (Chunk 5) will replace these with real phrase text.
-            -->
             <div class="phrase-dim">つぎのフレーズがここに表示されます</div>
             <div class="phrase-colored" style="clip-path: inset(0 40% 0 0)">つぎのフレーズがここに表示されます</div>
           </div>
-          <!--
-            Active cue bar: the playhead dot slides left→right each frame.
-            Arrow cue divs are pre-placed at beat positions by arrows.ts.
-            Placeholder playhead at 60% and three placeholder cues preview layout.
-          -->
           <div id="bar-top" class="bar-track">
             <div class="playhead" style="left: 60%"></div>
             <div class="cue" style="left: 20%">↑</div>
@@ -83,17 +81,11 @@
           </div>
         </div>
 
-        <!-- Bottom row: the next upcoming phrase (dimmed) -->
         <div id="phrase-bottom">
           <div id="phrase-bottom-text" class="phrase-text-wrap">
-            <!--
-              Placeholder next-phrase text. No color fill on the bottom row —
-              it is fully dim until it becomes the active row.
-            -->
             <div class="phrase-dim">つぎのつぎのフレーズがここに表示されます</div>
             <div class="phrase-colored" style="clip-path: inset(0 100% 0 0)">つぎのつぎのフレーズがここに表示されます</div>
           </div>
-          <!-- Next cue bar: same structure, no active playhead (Chunk 5/6) -->
           <div id="bar-bottom" class="bar-track">
             <div class="cue" style="left: 15%">→</div>
             <div class="cue" style="left: 45%">↑</div>
@@ -104,25 +96,19 @@
 
       </div><!-- /#lyric-overlay -->
 
-      <!-- ── Input pad ────────────────────────────────────────────────────────
-           Four directional buttons. Positioned at the very bottom of #stage,
-           outside and below the lyric overlay, at z-index 2.
-           data-direction attributes let main.ts use a single delegated listener
-           on #input-pad rather than four separate listeners (Chunk 7).
-           Button order matches the design doc diagram: ← ↓ ↑ →              -->
-      <div id="input-pad" role="group" aria-label="Directional input buttons">
-        <button data-direction="left"  aria-label="Left">←</button>
-        <button data-direction="down"  aria-label="Down">↓</button>
-        <button data-direction="up"    aria-label="Up">↑</button>
-        <button data-direction="right" aria-label="Right">→</button>
-      </div>
-
     </div><!-- /#stage -->
 
-    <!--
-      type="module" defers script execution automatically — the DOM above is
-      fully parsed before main.ts runs, so every getElementById call is safe
-      without a DOMContentLoaded wrapper.
-    -->
+    <!-- ── Input pad (20vh) ───────────────────────────────────────────────────
+         Sibling of #stage — sits below it in normal block flow, never overlaps
+         the lyric overlay. Four directional buttons fill the full width.
+         touch-action: manipulation and -webkit-tap-highlight-color are set in
+         CSS to eliminate the 300ms tap delay and grey flash on mobile.        -->
+    <div id="input-pad" role="group" aria-label="Directional input buttons">
+      <button data-direction="left"  aria-label="Left">←</button>
+      <button data-direction="down"  aria-label="Down">↓</button>
+      <button data-direction="up"    aria-label="Up">↑</button>
+      <button data-direction="right" aria-label="Right">→</button>
+    </div>
+
   </body>
 </html>
