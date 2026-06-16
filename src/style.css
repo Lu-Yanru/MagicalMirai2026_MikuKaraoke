@@ -8,9 +8,11 @@
 }
 
 /* ─── Root ───────────────────────────────────────────────────────────────────
-   body fills exactly one viewport height. overflow: hidden prevents any
-   accidental scrollbar on the page root — nothing outside #stage should ever
-   need to scroll.                                                              */
+   body fills exactly one viewport height with no scrolling.
+   display: flex + flex-direction: column lets the three siblings
+   (#hud / #stage / #input-pad) share 100vh by normal block flow — no
+   absolute positioning between siblings, no overlap possible at any
+   screen size.                                                                 */
 body {
   margin: 0;
   background-color: #0a0a0f;
@@ -18,14 +20,15 @@ body {
   height: 100vh;
   overflow: hidden;
   font-family: sans-serif;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ─── HUD (8vh) ──────────────────────────────────────────────────────────────
-   Top bar: song title left, stats centre-right, play button far right.
-   height: 8vh matches the 8% slice in the layout diagram.
-   z-index: 10 keeps it above all #stage children.                             */
+   Top bar: song title left, stats centre-right, play button far right.        */
 #hud {
   height: 8vh;
+  flex-shrink: 0;   /* never shrink below 8vh even if content overflows */
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -33,7 +36,7 @@ body {
   gap: 0.75rem;
   background-color: rgba(0, 0, 0, 0.7);
   z-index: 10;
-  position: relative; /* required for z-index to take effect */
+  position: relative;
 }
 
 #song-title {
@@ -49,8 +52,6 @@ body {
   display: flex;
   gap: 1.5rem;
   font-size: 0.9rem;
-  /* tabular-nums: score digits have fixed width so the display never shifts
-     layout as numbers increment rapidly during gameplay.                       */
   font-variant-numeric: tabular-nums;
 }
 
@@ -71,69 +72,107 @@ body {
 #btn-play:hover  { background: rgba(255, 255, 255, 0.22); }
 #btn-play:active { background: rgba(255, 255, 255, 0.32); }
 
-/* ─── Stage (92vh) ───────────────────────────────────────────────────────────
-   Fills the remaining viewport height after the HUD.
-   position: relative makes #stage the containing block for all absolutely-
-   positioned children: #singer, #lyric-overlay, and #input-pad.
-   overflow: hidden clips any cue animation that strays outside the bounds.    */
+/* ─── Stage (72vh) ───────────────────────────────────────────────────────────
+   Middle sibling between #hud and #input-pad. Contains the singer sprite and
+   lyric overlay as absolutely-positioned children.
+   position: relative makes #stage the containing block for those children.
+   overflow: hidden clips any cue animation that strays outside the bounds.
+
+   Height is 72vh = 100vh − 8vh (hud) − 20vh (input-pad). flex-shrink: 0
+   prevents the stage from collapsing if the flex container runs short.        */
 #stage {
-  height: 92vh;
+  height: 72vh;
+  flex-shrink: 0;
   position: relative;
-  overflow: hidden;
-  background-color: #111118; /* visible while singer image is loading */
+  overflow: visible;
+  background-color: #111118;
 }
 
-/* ─── Singer sprite ──────────────────────────────────────────────────────────
-   Fills the entire #stage. object-fit: cover scales the image to fill without
-   distortion. object-position: center top keeps the character's face and upper
-   body in frame regardless of the stage's aspect ratio.
-   z-index: 0 — the lowest layer; everything else sits on top.                */
-#singer {
+/* ─── Singer container ───────────────────────────────────────────────────────
+   Positions the layered singer sprite at the horizontal center of the stage,
+   anchored to the top.
+
+   Sizing:
+     Stage is now 72vh. Singer occupies the top 60% → 0.60 × 72vh = 43.2vh.
+     Canvas aspect ratio: 1673 ÷ 1816 = 0.9213.
+     Width = 43.2vh × 0.9213 = 39.8vh preserves the ratio exactly.
+     min() caps width at 90vw so the singer doesn't overflow narrow viewports.
+
+   Centering:
+     left: 50% + translateX(-50%) centers on the stage at any stage width.
+     The singerBounce keyframe must preserve this translateX explicitly —
+     CSS keyframe animations replace the full transform property.
+
+   z-index: 0 sits below the lyric overlay (z-index 1).                       */
+#singer-container {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center top;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 43.2vh;
+  width: min(39.8vh, 90vw);
   z-index: 0;
 }
 
-/* ─── Lyric overlay ──────────────────────────────────────────────────────────
-   Semi-transparent box pinned to the bottom 55% of #stage.
-   "bottom: 22%" leaves room for #input-pad (≈22vh) between the overlay bottom
-   edge and the stage bottom. The singer's face and upper body remain visible
-   in the uncovered top ~45% of the stage.
+/* ─── Singer layers ──────────────────────────────────────────────────────────
+   All six part PNGs (body, arms, pigtails, head) were exported from the same
+   1673×1816 Procreate canvas. Stacking them at top:0 left:0 width:100%
+   height:100% reproduces the composite exactly — shared canvas origin means
+   no per-layer offset math is ever needed.
 
-   backdrop-filter: blur adds a frosted-glass effect on supporting browsers,
-   making the lyrics easier to read over a complex singer illustration.        */
+   object-fit: fill stretches each PNG to fill the container exactly. This is
+   correct because the container preserves the same 0.9213 aspect ratio as the
+   canvas, so no distortion occurs.
+
+   pointer-events: none lets clicks pass through transparent PNG regions to
+   elements beneath. user-select: none prevents accidental image drag.         */
+.singer-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ─── Lyric overlay ──────────────────────────────────────────────────────────
+   Semi-transparent panel pinned to the bottom of #stage, sitting directly
+   above #input-pad with no gap (both are siblings in the flex column and share
+   the viewport cleanly).
+
+   Height 50% of the 72vh stage = 36vh. The overlay top lands at 50% of stage
+   = 36vh from stage top. The singer bottom is at 60% of stage = 43.2vh, so
+   the overlay overlaps the singer's lower 7.2vh — enough to cover the legs
+   while leaving the face and torso visible above.
+
+   bottom: 0 pins the overlay flush to the bottom edge of #stage (which is
+   flush with the top of #input-pad). No bottom offset needed — the input pad
+   is no longer inside the stage.                                               */
 #lyric-overlay {
   position: absolute;
-  bottom: 22%;   /* clears the input pad height */
+  bottom: 0;
   left: 0;
   right: 0;
-  height: 55%;   /* covers the lower 55% of #stage */
+  height: 50%;
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(2px);
-  /* -webkit-backdrop-filter: blur(2px);  frosted-glass effct for Safari */
   z-index: 1;
-  padding: 1rem 2rem;
+  padding: 0.6rem 1.5rem;
   display: flex;
   flex-direction: column;
   justify-content: space-evenly;
-  gap: 0.75rem;  transition: opacity 160ms ease;
+  gap: 0.5rem;
+  transition: opacity 160ms ease;
 }
 
 .hidden {
   opacity: 0;
-  visibility: hidden;}
+  visibility: hidden;
+}
 
-/* ─── Phrase rows ────────────────────────────────────────────────────────────
-   Each phrase row is a flex column: text wrap on top, cue bar below.
-   gap separates the text from the bar track.
-
-   .active — the phrase currently being sung; full opacity.
-   .next   — the upcoming phrase; dimmed so the player can read ahead without
-             it competing visually with the active row.                         */
+/* ─── Phrase rows ─────────────────────────────────────────────────────────── */
 .phrase-row {
   display: flex;
   flex-direction: column;
@@ -144,28 +183,18 @@ body {
 .phrase-row.next   { opacity: 0.6; }
 
 /* ─── Phrase text wrap ───────────────────────────────────────────────────────
-   position: relative is the containing block for the absolutely-positioned
-   character spans. Height is explicit so the container doesn't collapse to
-   zero (absolute children don't contribute to flow height).
-   white-space: nowrap prevents line breaks within character spans.
-   overflow: hidden clips any character that would extend past the right edge
-   (can happen on very short phrases where the last character's span width
-   pushes it over 100%).                                                        */
+   position: relative is the containing block for absolutely-positioned
+   character spans.                                                             */
 .phrase-text-wrap {
   position: relative;
   height: 2.4rem;
   line-height: 2.4rem;
   white-space: nowrap;
-  overflow: visible;           /* allow first/last char to breathe */
-  margin-left: 0.8em;         /* half-character buffer so left:0% chars aren't clipped */
-  margin-right: 0.8em;        /* symmetrical: last char at ~100% also won't clip */
+  overflow: visible;
+  margin-left: 0.8em;
+  margin-right: 0.8em;
 }
 
-/* Dim base layer for each character.
-   position: absolute + left: X% places it at its time-proportional position.
-   transform: translateX(-50%) centres the character glyph on that position
-   so the playhead dot (also centred at left: X%) aligns with the middle of
-   the character, not its left edge.                                            */
 .char-dim {
   position: absolute;
   color: rgba(255, 255, 255, 0.5);
@@ -174,22 +203,15 @@ body {
   user-select: none;
 }
 
-/* Teal colored layer — absolutely overlaps the dim span at the same position.
-   clip-path is updated each frame by updateLyrics().
-   No CSS transition — the clip must follow the playhead with zero lag.         */
 .char-colored {
   position: absolute;
   color: #1d9e75;
   transform: translateX(-50%);
   font-size: 1.6rem;
   user-select: none;
-  /* clip-path set inline each frame */
 }
 
-/* ─── Cue bar track ──────────────────────────────────────────────────────────
-   Horizontal track the playhead dot and arrow cue divs sit on.
-   position: relative is the containing block for the absolutely-positioned
-   .playhead and .cue children.                                                */
+/* ─── Cue bar track ──────────────────────────────────────────────────────── */
 .bar-track {
   position: relative;
   height: 32px;
@@ -199,29 +221,16 @@ body {
   overflow: visible;
 }
 
-/* ─── Bar track inner ────────────────────────────────────────────────────────
-   Inset container for cues and the moving playhead. By giving this a small
-   left and right margin, left: 0% on any child resolves to a position visually
-   inside the rounded bar track, not at its edge. The margin value should be
-   at least half the width of the widest child (the cue arrow, ~1.3rem / 2 =
-   ~0.65rem). Using 0.8rem gives a small comfortable buffer.
-   position: absolute with inset: 0 makes it fill the bar track first, then
-   the margin shrinks it inward from both sides.
-   pointer-events: none passes clicks through to the bar track.               */
 .bar-track-inner {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 0.8rem;     /* inset from left edge: cue at left:0% is fully inside bar */
-  right: 0.8rem;    /* inset from right edge: cue at left:100% is fully inside bar */
+  left: 0.8rem;
+  right: 0.8rem;
   pointer-events: none;
 }
 
-/* ─── Playhead dot ───────────────────────────────────────────────────────────
-   Small white circle that slides left→right across the bar each frame.
-   left: X% is set inline by arrows.ts each animation frame.
-   transform: translate(-50%, -50%) centres the circle on its left position
-   and on the vertical midline of the bar.                                     */
+/* ─── Playhead dot ───────────────────────────────────────────────────────── */
 .playhead {
   position: absolute;
   width: 16px;
@@ -233,11 +242,7 @@ body {
   pointer-events: none;
 }
 
-/* ─── Arrow cues ─────────────────────────────────────────────────────────────
-   Each cue is an arrow Unicode character (↑ ↓ ← →) absolutely positioned on
-   the bar at its beat's barPosition percentage.
-   transform: translate(-50%, -50%) centres the character on its beat position
-   and on the bar's vertical midline (same as .playhead).                      */
+/* ─── Arrow cues ─────────────────────────────────────────────────────────── */
 .cue {
   position: absolute;
   top: 50%;
@@ -248,23 +253,19 @@ body {
   user-select: none;
 }
 
-/* ─── Input pad (≈22vh) ──────────────────────────────────────────────────────
-   Four large directional buttons pinned to the very bottom of #stage.
-   z-index: 2 — sits above the lyric overlay so taps are never intercepted.
-   height: 22% of #stage height (≈22vh) provides enough space for 80×80px
-   buttons with comfortable vertical padding.
+/* ─── Input pad (20vh) ───────────────────────────────────────────────────────
+   Third sibling in the body flex column, sits below #stage in normal flow.
+   Because it is a flex sibling and not absolutely positioned inside #stage,
+   it can never overlap the lyric overlay regardless of screen size.
 
-   touch-action: manipulation eliminates the 300ms tap delay on mobile by
-   telling the browser this element handles its own gestures.
-   -webkit-tap-highlight-color: transparent removes the default grey flash on
-   iOS when a button is tapped.                                                */
+   height: 20vh is fixed. flex-shrink: 0 prevents it collapsing if the
+   viewport is very short.
+
+   touch-action: manipulation eliminates the 300ms tap delay on mobile.
+   -webkit-tap-highlight-color: transparent removes the iOS grey flash.        */
 #input-pad {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 22%;
-  z-index: 2;
+  height: 20vh;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -276,13 +277,10 @@ body {
 }
 
 #input-pad button {
-  /* Each button takes an equal share of the pad width minus gaps */
   flex: 1;
-  /* Floor at a comfortable tap size but in viewport units so it scales */
   min-width: 0;
   min-height: 0;
   max-width: min(15vh, 15vw, 100px);
-  /*A square at any size*/
   aspect-ratio: 1;
   font-size: clamp(1.2rem, 5vw, 1.8rem);
   background: rgba(255, 255, 255, 0.1);
@@ -300,16 +298,9 @@ body {
 }
 
 /* ─── Rating pop animation ───────────────────────────────────────────────────
-   Triggered by adding .cue-resolved to a cue element in resolveCue().
-
    Both keyframe steps carry translateX(-50%) explicitly because CSS keyframe
    animations replace the element's transform property entirely — they do not
-   stack on top of the static transform: translate(-50%, -50%) set on .cue.
-   Without the X component here, the centering is lost and the label drifts
-   horizontally mid-animation.
-
-   The Y starts at -50% (matching the static .cue centering) and ends 36px
-   higher, so there is no visual jump when the animation begins.              */
+   stack on top of the static transform: translate(-50%, -50%) set on .cue.   */
 @keyframes ratingPop {
   0%   {
     transform: translate(-50%, -50%);
@@ -323,47 +314,24 @@ body {
 
 .cue-resolved {
   animation: ratingPop 600ms ease-out forwards;
-  /* Override the static font size slightly so rating words
-     are readable at the same size as the arrow they replace. */
   font-size: 0.85rem;
   white-space: nowrap;
   pointer-events: none;
 }
 
-/* ─── Singer bounce animation (Chunk 8 step 3) ───────────────────────────────
-   Triggered by adding .singer-bounce to #singer in main.ts whenever the singer
-   state changes (idle → happy, happy → sad, etc.).
+/* ─── Singer bounce animation ────────────────────────────────────────────────
+   Applied to #singer-container on singer state change so all six layers
+   animate together. Removed on animationend via a { once: true } JS listener.
 
-   The animation is a gentle scale pulse: the singer pops slightly larger then
-   returns to normal. 200ms matches the plan spec. ease-out means the return
-   to scale(1) is smooth rather than abrupt.
-
-   The class is added programmatically and removed on animationend via a
-   { once: true } listener, so the animation plays exactly once per state
-   change and does not linger as a permanent class.
-
-   Note: #singer has no other transform applied (it uses object-fit: cover for
-   sizing), so the keyframe transform does not need to preserve any existing
-   translate/rotate. If a translate is added to #singer in future, the
-   keyframes must be updated to include it explicitly — CSS keyframe animations
-   replace the full transform property, not just the scale component.          */
+   translateX(-50%) is preserved in every keyframe step because CSS keyframe
+   animations replace the full transform property — omitting it would break
+   the horizontal centering mid-animation.                                      */
 @keyframes singerBounce {
-  0%   { transform: scale(1);    }
-  50%  { transform: scale(1.04); }
-  100% { transform: scale(1);    }
+  0%   { transform: translateX(-50%) scale(1);    }
+  50%  { transform: translateX(-50%) scale(1.04); }
+  100% { transform: translateX(-50%) scale(1);    }
 }
 
 .singer-bounce {
   animation: singerBounce 200ms ease-out;
-}
-
-@keyframes headShake {
-  0%, 100% { transform: rotate(0deg); }
-  25%       { transform: rotate(-4deg); }
-  75%       { transform: rotate(4deg); }
-}
-
-@keyframes armSwing {
-  0%, 100% { transform: rotate(0deg); }
-  50%       { transform: rotate(-25deg); }
 }
