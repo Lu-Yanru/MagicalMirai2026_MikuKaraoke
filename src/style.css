@@ -84,7 +84,7 @@ body {
   height: 72vh;
   flex-shrink: 0;
   position: relative;
-  overflow: visible;
+  overflow: hidden;
   background-color: #111118;
 }
 
@@ -159,11 +159,16 @@ body {
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(2px);
   z-index: 1;
-  padding: 0.6rem 1.5rem;
+  /* padding and gap shrink on short screens (landscape phones) so the two
+     phrase rows always fit without clipping. clamp(min, preferred, max):
+       min  = absolute floor so content never becomes invisible
+       pref = viewport-height-relative so it scales with available space
+       max  = comfortable size on tall screens                               */
+  padding: clamp(0.3rem, 1vh, 0.6rem) 1.5rem;
   display: flex;
   flex-direction: column;
   justify-content: space-evenly;
-  gap: 0.5rem;
+  gap: clamp(0.2rem, 1vh, 0.5rem);
   transition: opacity 160ms ease;
 }
 
@@ -176,7 +181,8 @@ body {
 .phrase-row {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  /* gap between .phrase-text-wrap and .bar-track shrinks on short screens */
+  gap: clamp(0.2rem, 1vh, 0.4rem);
 }
 
 .phrase-row.active { opacity: 1; }
@@ -187,8 +193,12 @@ body {
    character spans.                                                             */
 .phrase-text-wrap {
   position: relative;
-  height: 2.4rem;
-  line-height: 2.4rem;
+  /* Height and line-height must stay in sync — both use the same clamp so
+     character spans (absolutely positioned inside) remain vertically centred.
+     4vh at 375px viewport (landscape SE) = 15px, floor at 1.6rem = 25.6px
+     so the floor wins and we get a readable minimum size.                   */
+  height: clamp(1.6rem, 4vh, 2.4rem);
+  line-height: clamp(1.6rem, 4vh, 2.4rem);
   white-space: nowrap;
   overflow: visible;
   margin-left: 0.8em;
@@ -199,7 +209,9 @@ body {
   position: absolute;
   color: rgba(255, 255, 255, 0.5);
   transform: translateX(-50%);
-  font-size: 1.6rem;
+  /* font-size matches .phrase-text-wrap height so characters fill their row.
+     Must be kept in sync with the clamp on .phrase-text-wrap height above.  */
+  font-size: clamp(1rem, 3vh, 1.6rem);
   user-select: none;
 }
 
@@ -207,17 +219,19 @@ body {
   position: absolute;
   color: #1d9e75;
   transform: translateX(-50%);
-  font-size: 1.6rem;
+  font-size: clamp(1rem, 3vh, 1.6rem);
   user-select: none;
 }
 
 /* ─── Cue bar track ──────────────────────────────────────────────────────── */
 .bar-track {
   position: relative;
-  height: 32px;
+  /* Height shrinks on short screens. border-radius is always half the height
+     to keep the pill shape — both use the same clamp range.                 */
+  height: clamp(20px, 3vh, 32px);
+  border-radius: clamp(10px, 1.5vh, 16px);
   width: 100%;
   background: rgba(255, 255, 255, 0.15);
-  border-radius: 16px;
   overflow: visible;
 }
 
