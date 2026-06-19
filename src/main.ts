@@ -20,6 +20,14 @@ import {
   setSingerLyricState,
   setSingerExpressionState,
 } from "./ui/singer-animation";
+import {
+  initVocalPresence,
+  setVocalAmplitudeReady,
+  isVocalAmplitudeReady,
+  updateVocalPresence,
+  isVocalActiveNow,
+  resetVocalPresence,
+} from "./ui/vocal-presence";
 import { armCues, disarmCues } from "./ui/arrows";
 import { initLyrics, activatePhrase, updateLyrics } from "./ui/lyrics";
 import type { PhraseRow, Direction, ScoreState, RatingType, SingerState } from "./types";
@@ -46,7 +54,7 @@ const comboEl          = document.getElementById("combo")         as HTMLElement
 // singerHead: the topmost layer — head_idle / head_happy / head_singing / head_sad.
 //   Only this layer's src is swapped on state change. Body, arms, and pigtails
 //   stay on their default src; arm animations will be added in later steps.
-// const singerContainer = document.getElementById("singer-container") as HTMLElement;
+const singerContainer = document.getElementById("singer-container") as HTMLElement;
 const singerHead      = document.getElementById("singer-head")      as HTMLImageElement;
 
 // ─── Game state ───────────────────────────────────────────────────────────────
@@ -119,8 +127,15 @@ const scoreManager = new ScoreManager();
 // Player is the single entry point for the TextAlive App API.
 // VITE_TEXTALIVE_TOKEN is injected at build time from the environment —
 // never committed to the repo.
+//
+// vocalAmplitudeEnabled: true loads per-position vocal amplitude data, used
+// by vocal-presence.ts to detect actual singing in the audio rather than
+// relying solely on transcribed IPhrase boundaries. See onVocalAmplitudeLoad
+// below for the load-completion callback and isVocalAmplitudeReady() for the
+// fallback path if this data fails to load for a given song.
 const player = new Player({
   app: { token: import.meta.env.VITE_TEXTALIVE_TOKEN },
+  vocalAmplitudeEnabled: true,
 });
 
 // ─── Player lifecycle listeners ───────────────────────────────────────────────
@@ -179,6 +194,14 @@ player.addListener({
     // in onVideoReady).
     initSingerAnimation(player.data.songMap.beats);
 
+    // Reset vocal-presence tracking for the new song. resetVocalPresence()
+    // clears amplitudeReady/maxAmplitude from any PREVIOUS song so a stale
+    // "ready" flag can't leak across song loads; initVocalPresence() then
+    // stores the Player reference fresh. onVocalAmplitudeLoad below will set
+    // amplitudeReady = true again once the new song's data finishes loading.
+    resetVocalPresence();
+    initVocalPresence(player);
+
     // Activate the first two phrase rows so lyrics are visible before play.
     activeIndex = 0;
     nextIndex   = 1;
@@ -212,6 +235,24 @@ player.addListener({
     lyricWasActive = false;
     applySingerExpression("idle", false);
     setSingerLyricState(false); // arm_left_down — no phrase active yet
+  },
+
+  // ── onVocalAmplitudeLoad ───────────────────────────────────────────────────
+  // Fires when the per-position vocal amplitude data (enabled via
+  // vocalAmplitudeEnabled: true above) finishes loading — asynchronously,
+  // and not necessarily at the same time as onVideoReady. `reason` is present
+  // only on failure; its absence means the data loaded successfully.
+  //
+  // On success: vocal-presence.ts can now use real audio-derived singing
+  // detection. On failure: isVocalAmplitudeReady() stays false, and the
+  // tick() loop's fallback branch (see below) reverts to the simpler
+  // phrase-boundary check so the feature degrades gracefully rather than
+  // silently breaking for songs where amplitude data isn't available.
+  onVocalAmplitudeLoad(_vocalAmplitude: any, reason?: Error) {
+    setVocalAmplitudeReady(!reason);
+    if (reason) {
+      console.warn("Vocal amplitude data failed to load, falling back to phrase-boundary detection:", reason);
+    }
   },
 
   // Pause/resume lyric updates around seek operations.
@@ -371,12 +412,12 @@ document.addEventListener("scoreupdate", (e) => {
     applySingerExpression(newSingerState, lyricWasActive);
 
     // Bounce all layers together via the container.
-    // singerContainer.classList.remove("singer-bounce");
-    // void singerContainer.offsetWidth; // force reflow
-    // singerContainer.classList.add("singer-bounce");
-    // singerContainer.addEventListener("animationend", () => {
-    //   singerContainer.classList.remove("singer-bounce");
-    // }, { once: true });
+    singerContainer.classList.remove("singer-bounce");
+    void singerContainer.offsetWidth; // force reflow
+    singerContainer.classList.add("singer-bounce");
+    singerContainer.addEventListener("animationend", () => {
+      singerContainer.classList.remove("singer-bounce");
+    }, { once: true });
   }
 });
 
@@ -475,15 +516,28 @@ function tick(): void {
 
   const activeRow = phraseRows[activeIndex];
 
-  // ── Singer lyric state (arm up/down) ──────────────────────────────────────
-  // A lyric is "active" when position falls within the current phrase's
-  // [startTime, endTime) range. This also catches instrumental gaps between
-  // phrases (position past the previous phrase's endTime but before the next
-  // phrase's startTime), which the phrase-advance loop above does not detect
-  // on its own since it only fires at phrase-start boundaries.
-  const lyricActiveNow =
-    position >= activeRow.phrase.startTime &&
-    position < activeRow.phrase.endTime;
+  // ── Singer lyric state (arm up/down, expression) ──────────────────────────
+  // Primary signal: debounced vocal amplitude (vocal-presence.ts). This
+  // detects actual singing in the audio, so it correctly stays "active"
+  // through short breaths between phrases (instead of flickering the arm
+  // down every gap) and correctly detects sung passages that have no new
+  // IPhrase text (repeated lines, ad-libs) — see vocal-presence.ts header
+  // comment for the full rationale.
+  //
+  // Fallback: if amplitude data failed to load for this song
+  // (isVocalAmplitudeReady() false), revert to the original phrase-boundary
+  // check so the feature degrades gracefully rather than leaving the singer
+  // permanently idle with no signal at all.
+  let lyricActiveNow: boolean;
+
+  if (isVocalAmplitudeReady()) {
+    updateVocalPresence(position);
+    lyricActiveNow = isVocalActiveNow();
+  } else {
+    lyricActiveNow =
+      position >= activeRow.phrase.startTime &&
+      position < activeRow.phrase.endTime;
+  }
 
   if (lyricActiveNow !== lyricWasActive) {
     lyricWasActive = lyricActiveNow;
