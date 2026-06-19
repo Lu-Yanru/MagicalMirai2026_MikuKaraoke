@@ -9,8 +9,8 @@ x Do not just schedule based on character but based on beat, otherwise always at
 
 Chunk 4 issues:
 - Play button too small. Hard to use on mobile.
-- Singer pic too big, not enough part of body is shown. Maybe only occupy the upper 60% and center of the "stage".
-- Lyrics area can have less empty space around and betwenn the two rows. Also move closer to the bottom (The arrow buttons). 
+x Singer pic too big, not enough part of body is shown. Maybe only occupy the upper 60% and center of the "stage".
+x Lyrics area can have less empty space around and betwenn the two rows. Also move closer to the bottom (The arrow buttons). 
 - Some browsers (e.g. Chrome) has tabs on top, need to scroll to show input pad in full.
     -> add a fullscreen button?
 
@@ -27,7 +27,7 @@ x Bar track fills up the whole window length while the phrase row doesn't, so th
 x When cue at the start of the phrase, partially hang out of the bar track.
     -> Add a inner bar track that is shorter than the visual bar track and place cues and lyrics along that.
 - Set a max width and centered in the window because it's too wide on a big screen.
-- Shrink the font size of all lyrics phrases when the window is too small so that the whole phrase row fit in the width of the window.
+x Shrink the font size of all lyrics phrases when the window is too small so that the whole phrase row fit in the width of the window.
     -> Based on test with dev tools, works on small screens in horizontal mode. Add hint to play in horizonal mode.
 
 

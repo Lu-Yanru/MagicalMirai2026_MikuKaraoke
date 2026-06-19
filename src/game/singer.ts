@@ -49,7 +49,7 @@ export function getSingerState(
   // ── happy: Perfect hit or sustained high combo ─────────────────────────────
   // A Perfect hit fires happy immediately. Combo >= 10 keeps the singer happy
   // even if the last individual rating was Great or Good.
-  if (lastRating === "Perfect" || state.combo >= 10) {
+  if (state.combo >= 10) {
     return "happy";
   }
 

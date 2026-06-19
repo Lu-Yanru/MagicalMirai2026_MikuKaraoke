@@ -14,6 +14,12 @@ import { Player, type IPlayerApp, type IVideo } from "textalive-app-api";
 import { buildSchedule } from "./game/scheduler";
 import { ScoreManager } from "./game/scoring";
 import { getSingerState } from "./game/singer";
+import {
+  initSingerAnimation,
+  updateSingerAnimation,
+  setSingerLyricState,
+  setSingerExpressionState,
+} from "./ui/singer-animation";
 import { armCues, disarmCues } from "./ui/arrows";
 import { initLyrics, activatePhrase, updateLyrics } from "./ui/lyrics";
 import type { PhraseRow, Direction, ScoreState, RatingType, SingerState } from "./types";
@@ -40,7 +46,7 @@ const comboEl          = document.getElementById("combo")         as HTMLElement
 // singerHead: the topmost layer — head_idle / head_happy / head_singing / head_sad.
 //   Only this layer's src is swapped on state change. Body, arms, and pigtails
 //   stay on their default src; arm animations will be added in later steps.
-const singerContainer = document.getElementById("singer-container") as HTMLElement;
+// const singerContainer = document.getElementById("singer-container") as HTMLElement;
 const singerHead      = document.getElementById("singer-head")      as HTMLImageElement;
 
 // ─── Game state ───────────────────────────────────────────────────────────────
@@ -90,6 +96,11 @@ let blinkVisible   = false;
 // corrupt the blink state that phrase 1 will later use.
 let activePreBlinkIndex   = 0;
 let activePreBlinkVisible = false;
+
+// Tracks whether a lyric was active on the previous frame, so
+// setSingerLyricState() (which swaps the left arm up/down) is only called on
+// the true/false transition, not redundantly every frame.
+let lyricWasActive = false;
 
 // ─── Singer state (Chunk 8 step 3) ───────────────────────────────────────────
 //
@@ -162,6 +173,12 @@ player.addListener({
     // Build all phrase row DOM elements upfront (does not insert into DOM yet).
     initLyrics(phraseRows);
 
+    // Initialize beat-driven singer animations (head shake, pigtail shake,
+    // arm swing, mouth) with the full song's beat array. Must come after
+    // player.data.songMap.beats is confirmed populated (it is, by this point
+    // in onVideoReady).
+    initSingerAnimation(player.data.songMap.beats);
+
     // Activate the first two phrase rows so lyrics are visible before play.
     activeIndex = 0;
     nextIndex   = 1;
@@ -188,9 +205,13 @@ player.addListener({
       lyricOverlay.classList.remove("hidden");
     }
 
-    // Reset singer to idle whenever a new song is loaded.
+    // Reset singer to idle whenever a new song is loaded. No lyric is active
+    // yet, so applySingerExpression(idle, false) resolves to head_idle.png —
+    // same single rule used everywhere else, not duplicated here.
     currentSingerState = "idle";
-    singerHead.src     = "/assets/singer/head_idle.png";
+    lyricWasActive = false;
+    applySingerExpression("idle", false);
+    setSingerLyricState(false); // arm_left_down — no phrase active yet
   },
 
   // Pause/resume lyric updates around seek operations.
@@ -274,17 +295,61 @@ inputPad.addEventListener("click", (e) => {
   handlePadInput(e.target);
 });
 
+// ─── Singer expression rule ───────────────────────────────────────────────────
+//
+// Centralizes the rule for which head image to show, since it now depends on
+// TWO independent inputs that change at different times:
+//   - currentSingerState (score-driven: idle/happy/singing/sad)
+//   - lyricWasActive     (position-driven: is a phrase playing right now)
+//
+// Rule:
+//   No active lyric (instrumental section / before song starts):
+//     - state === "happy" → head_happy_mouth_big.png (stays open-mouth happy)
+//     - otherwise         → head_idle.png (always reverts to idle)
+//   Active lyric:
+//     - "idle" / "sad"     → static src set directly by the caller.
+//     - "happy" / "singing" → delegated to setSingerExpressionState(), which
+//       sets the initial mouth_small frame and hands ongoing beat-driven
+//       mouth swaps to updateSingerAnimation() in tick().
+//
+// Called from two places: the scoreupdate listener (state just changed) and
+// the lyric-active transition in tick() (lyric just started/stopped). Both
+// sites need the exact same decision, so the rule lives here once.
+function applySingerExpression(state: SingerState, lyricActive: boolean): void {
+  if (!lyricActive) {
+    // No lyric playing — idle by default, except happy holds its open-mouth pose.
+    singerHead.src =
+      state === "happy"
+        ? "/assets/singer/head_happy_mouth_big.png"
+        : "/assets/singer/head_idle.png";
+    // Stop any in-progress beat-driven mouth swap bookkeeping so that if a
+    // lyric starts again on this same state, the mouth animation resumes
+    // cleanly from mouth_small rather than from wherever it left off.
+    setSingerExpressionState(state === "happy" ? "happy" : "idle");
+    return;
+  }
+
+  // Lyric IS active — normal per-state handling.
+  if (state === "idle" || state === "sad") {
+    singerHead.src = `/assets/singer/head_${state}.png`;
+  }
+  // "happy" / "singing" while a lyric is active: beat-driven mouth animation
+  // owns the src from here on, via setSingerExpressionState() + tick().
+  setSingerExpressionState(state);
+}
+
 // ─── HUD + singer update on scoreupdate ──────────────────────────────────────
 //
 // 'scoreupdate' is dispatched by ScoreManager.applyRating() after every rating.
 // The detail is a ScoreState snapshot plus lastRating (added in Chunk 8).
 //
-// Singer update logic (step 3):
+// Singer update logic:
 //   1. getSingerState() maps score snapshot + lastRating → SingerState string.
 //   2. Guard: only act when state changes — avoids redundant src swaps and
 //      bounce restarts (e.g. repeated Perfects while already "happy").
-//   3. Swap singerHead src to the matching head expression PNG.
-//      Body, arms, pigtails stay on default srcs; arm animations come later.
+//   3. applySingerExpression() decides the head src using BOTH the new state
+//      and whether a lyric is currently active (lyricWasActive) — see its
+//      doc comment for the full rule.
 //   4. Bounce singerContainer so all six layers animate as one unit.
 //      Remove class → force reflow (void offsetWidth) → re-add. Without the
 //      reflow, removing and immediately re-adding in one synchronous frame is
@@ -303,16 +368,15 @@ document.addEventListener("scoreupdate", (e) => {
   if (newSingerState !== currentSingerState) {
     currentSingerState = newSingerState;
 
-    // Swap facial expression layer.
-    singerHead.src = `/assets/singer/head_${newSingerState}.png`;
+    applySingerExpression(newSingerState, lyricWasActive);
 
     // Bounce all layers together via the container.
-    singerContainer.classList.remove("singer-bounce");
-    void singerContainer.offsetWidth; // force reflow
-    singerContainer.classList.add("singer-bounce");
-    singerContainer.addEventListener("animationend", () => {
-      singerContainer.classList.remove("singer-bounce");
-    }, { once: true });
+    // singerContainer.classList.remove("singer-bounce");
+    // void singerContainer.offsetWidth; // force reflow
+    // singerContainer.classList.add("singer-bounce");
+    // singerContainer.addEventListener("animationend", () => {
+    //   singerContainer.classList.remove("singer-bounce");
+    // }, { once: true });
   }
 });
 
@@ -410,6 +474,35 @@ function tick(): void {
   }
 
   const activeRow = phraseRows[activeIndex];
+
+  // ── Singer lyric state (arm up/down) ──────────────────────────────────────
+  // A lyric is "active" when position falls within the current phrase's
+  // [startTime, endTime) range. This also catches instrumental gaps between
+  // phrases (position past the previous phrase's endTime but before the next
+  // phrase's startTime), which the phrase-advance loop above does not detect
+  // on its own since it only fires at phrase-start boundaries.
+  const lyricActiveNow =
+    position >= activeRow.phrase.startTime &&
+    position < activeRow.phrase.endTime;
+
+  if (lyricActiveNow !== lyricWasActive) {
+    lyricWasActive = lyricActiveNow;
+    setSingerLyricState(lyricActiveNow);
+
+    // Re-evaluate the head expression for the new lyric-active state, using
+    // whatever the score-driven state currently is. This is what makes the
+    // singer revert to head_idle.png (or hold head_happy_mouth_big.png if
+    // happy) the instant a phrase ends — independent of any scoreupdate
+    // event, which only fires on a rating, not on a phrase boundary.
+    applySingerExpression(currentSingerState, lyricActiveNow);
+  }
+
+  // ── Beat-driven singer animations ─────────────────────────────────────────
+  // Head shake, pigtail shake, arm swing, and mouth animation all derive from
+  // the current position and the full song beat array (set once in
+  // initSingerAnimation). isPlaying gates the animation so it freezes cleanly
+  // on pause rather than continuing with a stale position.
+  updateSingerAnimation(position, isPlaying);
 
   // ── Lyric color fill ──────────────────────────────────────────────────────
   updateLyrics(activeRow, position);

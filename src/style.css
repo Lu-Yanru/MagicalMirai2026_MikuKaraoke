@@ -340,7 +340,7 @@ body {
    translateX(-50%) is preserved in every keyframe step because CSS keyframe
    animations replace the full transform property — omitting it would break
    the horizontal centering mid-animation.                                      */
-@keyframes singerBounce {
+/* @keyframes singerBounce {
   0%   { transform: translateX(-50%) scale(1);    }
   50%  { transform: translateX(-50%) scale(1.04); }
   100% { transform: translateX(-50%) scale(1);    }
@@ -348,4 +348,4 @@ body {
 
 .singer-bounce {
   animation: singerBounce 200ms ease-out;
-}
+} */
