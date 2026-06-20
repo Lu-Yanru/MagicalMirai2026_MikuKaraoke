@@ -300,7 +300,16 @@ document.addEventListener("keydown", (e) => {
   // before the song has loaded — matches what a real touch press would do.
   DIRECTION_BUTTONS[direction].classList.add("key-pressed");
 
+  // Browsers auto-repeat keydown while a key is held. Without this guard, a
+  // long hold before a cue fires handleInput repeatedly, and a later repeat
+  // can land inside the cue's hit window — registering a hit on a held key
+  // that was never freshly pressed for that cue. e.repeat is true on every
+  // synthetic repeat event and false on the original press.
+  if (e.repeat) return;
+
+  // Ignore input if no song is loaded yet or song hasn't started.
   if (phraseRows.length === 0) return;
+
   scoreManager.handleInput(direction, lastRenderedPosition, phraseRows[activeIndex]);
 });
 

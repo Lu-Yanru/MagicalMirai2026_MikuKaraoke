@@ -29,7 +29,10 @@ x When cue at the start of the phrase, partially hang out of the bar track.
 - Set a max width and centered in the window because it's too wide on a big screen.
 x Shrink the font size of all lyrics phrases when the window is too small so that the whole phrase row fit in the width of the window.
     -> Based on test with dev tools, works on small screens in horizontal mode. Add hint to play in horizonal mode.
-- When keep a key hold, the cue gets resolved not as a miss.
+
+Chunk 7 issues:
+x When keep a key hold, the cue gets resolved not as a miss.
+-> Browsers auto-repeat keydown while a key is held, one of those repeats lands inside the cue's hit window, resolving it as a hit instead of a miss. Ignore repeated keydown events from a held key
 
 Chunk 8 issues:
 - Singing animation not entirely in sync with vocal/instrumental sections. Current approach is based on if there is lyrics or not.
