@@ -72,6 +72,13 @@
 import type { IBeat } from "textalive-app-api";
 import type { SingerState } from "../types";
 
+import armLeftUp from "/src/assets/singer/arm_left_up.png";
+import armLeftDown from "/src/assets/singer/arm_left_down.png";
+import headHappySmall from "/src/assets/singer/head_happy_mouth_small.png";
+import headHappyBig from "/src/assets/singer/head_happy_mouth_big.png";
+import headSingingSmall from "/src/assets/singer/head_singing_mouth_small.png";
+import headSingingBig from "/src/assets/singer/head_singing_mouth_big.png";
+
 // ─── DOM references ───────────────────────────────────────────────────────────
 // Grabbed once at init time. Null-checked before use in case init is called
 // before the DOM is ready (shouldn't happen — module is deferred).
@@ -169,8 +176,8 @@ export function setSingerLyricState(active: boolean): void {
   hasActiveLyric = active;
   if (!elArmLeft) return;
   elArmLeft.src = active
-    ? "/assets/singer/arm_left_up.png"
-    : "/assets/singer/arm_left_down.png";
+    ? armLeftUp
+    : armLeftDown;
 }
 
 // ─── setSingerExpressionState ─────────────────────────────────────────────────
@@ -195,8 +202,11 @@ export function setSingerExpressionState(state: SingerState): void {
   mouthOpen = false;
   lastMouthBeatIdx = -1;
 
-  if ((state === "happy" || state === "singing") && elHead) {
-    elHead.src = `/assets/singer/head_${state}_mouth_small.png`;
+  if (state === "singing" && elHead) {
+    elHead.src = headHappySmall;
+  }
+  else if (state === "singing" && elHead){
+    elHead.src = headSingingSmall;
   }
 }
 
@@ -305,8 +315,18 @@ export function updateSingerAnimation(
     mouthOpen = !mouthOpen;
 
     if (elHead) {
-      const mouth = mouthOpen ? "mouth_big" : "mouth_small";
-      elHead.src = `/assets/singer/head_${singerState}_${mouth}.png`;
+      if (singerState === "happy" && !mouthOpen) {
+        elHead.src = headHappySmall;
+      }
+      else if (singerState === "happy" && mouthOpen) {
+        elHead.src = headHappyBig;
+      }
+      else if (singerState === "singing" && !mouthOpen) {
+        elHead.src = headSingingSmall;
+      }
+      else if (singerState === "singing" && mouthOpen) {
+        elHead.src = headSingingBig;
+      }
     }
   }
 }
