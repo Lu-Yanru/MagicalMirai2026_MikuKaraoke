@@ -21,11 +21,8 @@ import {
   setSingerExpressionState,
 } from "./ui/singer-animation";
 import {
-  initVocalPresence,
-  setVocalAmplitudeReady,
-  isVocalAmplitudeReady,
-  updateVocalPresence,
-  isVocalActiveNow,
+  debounceRawSignal,
+  isPresenceActiveNow,
   resetVocalPresence,
 } from "./ui/vocal-presence";
 import { armCues, disarmCues } from "./ui/arrows";
@@ -128,14 +125,15 @@ const scoreManager = new ScoreManager();
 // VITE_TEXTALIVE_TOKEN is injected at build time from the environment —
 // never committed to the repo.
 //
-// vocalAmplitudeEnabled: true loads per-position vocal amplitude data, used
-// by vocal-presence.ts to detect actual singing in the audio rather than
-// relying solely on transcribed IPhrase boundaries. See onVocalAmplitudeLoad
-// below for the load-completion callback and isVocalAmplitudeReady() for the
-// fallback path if this data fails to load for a given song.
+// NOTE: vocalAmplitudeEnabled was tried and removed — getVocalAmplitude() /
+// getMaxVocalAmplitude() were confirmed broken in this SDK version (client
+// v0.10.0 / server v0.10.1): onVocalAmplitudeLoad fires successfully with a
+// real populated data array, but both getters return undefined regardless of
+// when they're read afterward. See vocal-presence.ts header comment for the
+// full investigation. Singer lyric-presence detection instead uses a
+// debounced IPhrase-boundary check (see tick() below).
 const player = new Player({
   app: { token: import.meta.env.VITE_TEXTALIVE_TOKEN },
-  vocalAmplitudeEnabled: true,
 });
 
 // ─── Player lifecycle listeners ───────────────────────────────────────────────
@@ -194,13 +192,9 @@ player.addListener({
     // in onVideoReady).
     initSingerAnimation(player.data.songMap.beats);
 
-    // Reset vocal-presence tracking for the new song. resetVocalPresence()
-    // clears amplitudeReady/maxAmplitude from any PREVIOUS song so a stale
-    // "ready" flag can't leak across song loads; initVocalPresence() then
-    // stores the Player reference fresh. onVocalAmplitudeLoad below will set
-    // amplitudeReady = true again once the new song's data finishes loading.
+    // Reset lyric-presence debounce state for the new song so no stale
+    // active/inactive carryover from a previous song leaks in.
     resetVocalPresence();
-    initVocalPresence(player);
 
     // Activate the first two phrase rows so lyrics are visible before play.
     activeIndex = 0;
@@ -235,24 +229,6 @@ player.addListener({
     lyricWasActive = false;
     applySingerExpression("idle", false);
     setSingerLyricState(false); // arm_left_down — no phrase active yet
-  },
-
-  // ── onVocalAmplitudeLoad ───────────────────────────────────────────────────
-  // Fires when the per-position vocal amplitude data (enabled via
-  // vocalAmplitudeEnabled: true above) finishes loading — asynchronously,
-  // and not necessarily at the same time as onVideoReady. `reason` is present
-  // only on failure; its absence means the data loaded successfully.
-  //
-  // On success: vocal-presence.ts can now use real audio-derived singing
-  // detection. On failure: isVocalAmplitudeReady() stays false, and the
-  // tick() loop's fallback branch (see below) reverts to the simpler
-  // phrase-boundary check so the feature degrades gracefully rather than
-  // silently breaking for songs where amplitude data isn't available.
-  onVocalAmplitudeLoad(_vocalAmplitude: any, reason?: Error) {
-    setVocalAmplitudeReady(!reason);
-    if (reason) {
-      console.warn("Vocal amplitude data failed to load, falling back to phrase-boundary detection:", reason);
-    }
   },
 
   // Pause/resume lyric updates around seek operations.
@@ -361,8 +337,8 @@ function applySingerExpression(state: SingerState, lyricActive: boolean): void {
     // No lyric playing — idle by default, except happy holds its open-mouth pose.
     singerHead.src =
       state === "happy"
-        ? "/assets/singer/head_happy_mouth_big.png"
-        : "/assets/singer/head_idle.png";
+        ? "/src/assets/singer/head_happy_mouth_big.png"
+        : "/src/assets/singer/head_idle.png";
     // Stop any in-progress beat-driven mouth swap bookkeeping so that if a
     // lyric starts again on this same state, the mouth animation resumes
     // cleanly from mouth_small rather than from wherever it left off.
@@ -372,7 +348,7 @@ function applySingerExpression(state: SingerState, lyricActive: boolean): void {
 
   // Lyric IS active — normal per-state handling.
   if (state === "idle" || state === "sad") {
-    singerHead.src = `/assets/singer/head_${state}.png`;
+    singerHead.src = `/src/assets/singer/head_${state}.png`;
   }
   // "happy" / "singing" while a lyric is active: beat-driven mouth animation
   // owns the src from here on, via setSingerExpressionState() + tick().
@@ -517,27 +493,18 @@ function tick(): void {
   const activeRow = phraseRows[activeIndex];
 
   // ── Singer lyric state (arm up/down, expression) ──────────────────────────
-  // Primary signal: debounced vocal amplitude (vocal-presence.ts). This
-  // detects actual singing in the audio, so it correctly stays "active"
-  // through short breaths between phrases (instead of flickering the arm
-  // down every gap) and correctly detects sung passages that have no new
-  // IPhrase text (repeated lines, ad-libs) — see vocal-presence.ts header
-  // comment for the full rationale.
-  //
-  // Fallback: if amplitude data failed to load for this song
-  // (isVocalAmplitudeReady() false), revert to the original phrase-boundary
-  // check so the feature degrades gracefully rather than leaving the singer
-  // permanently idle with no signal at all.
-  let lyricActiveNow: boolean;
+  // Raw signal: position falls within the active phrase's [startTime, endTime)
+  // range. This raw signal alone would flicker the singer's arm down during
+  // every short gap between phrases — debounceRawSignal() smooths that out
+  // with a hold-time (see vocal-presence.ts header comment for why this is
+  // phrase-boundary-based rather than audio-amplitude-based: the amplitude
+  // API was tried first and found to be broken in this SDK version).
+  const rawLyricActive =
+    position >= activeRow.phrase.startTime &&
+    position < activeRow.phrase.endTime;
 
-  if (isVocalAmplitudeReady()) {
-    updateVocalPresence(position);
-    lyricActiveNow = isVocalActiveNow();
-  } else {
-    lyricActiveNow =
-      position >= activeRow.phrase.startTime &&
-      position < activeRow.phrase.endTime;
-  }
+  debounceRawSignal(rawLyricActive, position);
+  const lyricActiveNow = isPresenceActiveNow();
 
   if (lyricActiveNow !== lyricWasActive) {
     lyricWasActive = lyricActiveNow;
@@ -546,8 +513,9 @@ function tick(): void {
     // Re-evaluate the head expression for the new lyric-active state, using
     // whatever the score-driven state currently is. This is what makes the
     // singer revert to head_idle.png (or hold head_happy_mouth_big.png if
-    // happy) the instant a phrase ends — independent of any scoreupdate
-    // event, which only fires on a rating, not on a phrase boundary.
+    // happy) once a genuine instrumental break is detected — independent of
+    // any scoreupdate event, which only fires on a rating, not on a phrase
+    // boundary.
     applySingerExpression(currentSingerState, lyricActiveNow);
   }
 

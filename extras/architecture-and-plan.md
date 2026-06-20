@@ -621,7 +621,7 @@ x 5. Add CSS for singer bounce:
 | 6 — Playhead + miss        | ✅ Complete | 2 days          |
 | 7 — Input + scoring        | ✅ Complete | 2–3 days        |
 | 8 — Singer + polish        | 🔄 In progress | 3–4 days        |
-| Singer art (parallel)      | 🔄 In progress | 1 week          |
+| Singer art (parallel)      | ✅ Complete | 1 week          |
 | Buffer / bug fixing        | —           | 3–4 days        |
 
 **~4 weeks of focused part-time work.**
