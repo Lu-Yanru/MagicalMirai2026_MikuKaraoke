@@ -29,6 +29,13 @@ import { armCues, disarmCues } from "./ui/arrows";
 import { initLyrics, activatePhrase, updateLyrics } from "./ui/lyrics";
 import type { PhraseRow, Direction, ScoreState, RatingType, SingerState } from "./types";
 
+import playIcon from "/src/assets/ui/play.png";
+import pauseIcon from "/src/assets/ui/pause.png";
+
+import headHappyBig from "/src/assets/singer/head_happy_mouth_big.png";
+import headIdle from "/src/assets/singer/head_idle.png";
+import headSad from "/src/assets/singer/head_sad.png"
+
 // ─── DOM references ───────────────────────────────────────────────────────────
 //
 // Grabbed once at module load time. All getElementById calls are safe here
@@ -40,6 +47,7 @@ const lyricOverlay     = document.getElementById("lyric-overlay") as HTMLElement
 const btnPlay          = document.getElementById("btn-play")      as HTMLButtonElement;
 const scoreEl          = document.getElementById("score")         as HTMLElement;
 const comboEl          = document.getElementById("combo")         as HTMLElement;
+const btnPlayImg = document.getElementById("btn-play-img") as HTMLImageElement;
 
 // ── Singer DOM refs (Chunk 8) ─────────────────────────────────────────────────
 //
@@ -238,9 +246,10 @@ player.addListener({
   // Re-arm miss timeouts when playback resumes. armCues skips already-resolved
   // cues so replaying a partial phrase only arms what hasn't been hit yet.
   onPlay() {
-    if (phraseRows.length > 0) {
-      armCues(phraseRows[activeIndex], player.timer.position, (r) => scoreManager.applyRating(r));
-    }
+  if (phraseRows.length > 0) {
+    armCues(phraseRows[activeIndex], player.timer.position, (r) => scoreManager.applyRating(r));
+  }
+    btnPlayImg.src = pauseIcon;   // button now shows "pause" while playing
   },
 
   // Cancel pending miss timeouts while paused so they don't fire against a
@@ -249,6 +258,7 @@ player.addListener({
     if (phraseRows.length > 0) {
       disarmCues(phraseRows[activeIndex]);
     }
+    btnPlayImg.src = playIcon;    // button reverts to "play" while paused
   },
 });
 
@@ -283,8 +293,25 @@ document.addEventListener("keydown", (e) => {
   const direction = KEY_TO_DIRECTION[e.key];
   if (!direction) return;
   e.preventDefault();
+
+  // Visual sync: press the on-screen button to match the key, regardless of
+  // whether a cue is currently active. Done unconditionally (before the
+  // empty-phraseRows guard below) so the button still visibly responds even
+  // before the song has loaded — matches what a real touch press would do.
+  DIRECTION_BUTTONS[direction].classList.add("key-pressed");
+
   if (phraseRows.length === 0) return;
   scoreManager.handleInput(direction, lastRenderedPosition, phraseRows[activeIndex]);
+});
+
+// Release the visual press on keyup. Browsers auto-repeat `keydown` while a
+// key is held, but only fire `keyup` once on release — so this naturally
+// keeps the button looking pressed for the full hold duration without any
+// extra debouncing logic.
+document.addEventListener("keyup", (e) => {
+  const direction = KEY_TO_DIRECTION[e.key];
+  if (!direction) return;
+  DIRECTION_BUTTONS[direction].classList.remove("key-pressed");
 });
 
 // ─── Touch / click input ──────────────────────────────────────────────────────
@@ -294,6 +321,18 @@ document.addEventListener("keydown", (e) => {
 // required so e.preventDefault() is allowed — prevents the synthetic click
 // that would otherwise fire ~300ms later and double-trigger the input.
 const inputPad = document.getElementById("input-pad") as HTMLElement;
+
+// ─── Input pad button refs, keyed by Direction (Chunk: keyboard visual sync) ─
+//
+// Lets the keyboard handler below toggle the same `.key-pressed` CSS class
+// that touch/mouse presses get for free via the native :active pseudo-class,
+// so pressing an arrow key visually presses its on-screen button too.
+const DIRECTION_BUTTONS: Record<Direction, HTMLButtonElement> = {
+  up:    inputPad.querySelector('[data-direction="up"]')    as HTMLButtonElement,
+  down:  inputPad.querySelector('[data-direction="down"]')  as HTMLButtonElement,
+  left:  inputPad.querySelector('[data-direction="left"]')  as HTMLButtonElement,
+  right: inputPad.querySelector('[data-direction="right"]') as HTMLButtonElement,
+};
 
 function handlePadInput(target: EventTarget | null): void {
   if (!(target instanceof HTMLElement)) return;
@@ -337,8 +376,8 @@ function applySingerExpression(state: SingerState, lyricActive: boolean): void {
     // No lyric playing — idle by default, except happy holds its open-mouth pose.
     singerHead.src =
       state === "happy"
-        ? "/src/assets/singer/head_happy_mouth_big.png"
-        : "/src/assets/singer/head_idle.png";
+        ? headHappyBig
+        : headIdle;
     // Stop any in-progress beat-driven mouth swap bookkeeping so that if a
     // lyric starts again on this same state, the mouth animation resumes
     // cleanly from mouth_small rather than from wherever it left off.
@@ -347,8 +386,11 @@ function applySingerExpression(state: SingerState, lyricActive: boolean): void {
   }
 
   // Lyric IS active — normal per-state handling.
-  if (state === "idle" || state === "sad") {
-    singerHead.src = `/src/assets/singer/head_${state}.png`;
+  if (state === "idle") {
+    singerHead.src = headIdle;
+  }
+  else if (state === "sad") {
+    singerHead.src = headSad
   }
   // "happy" / "singing" while a lyric is active: beat-driven mouth animation
   // owns the src from here on, via setSingerExpressionState() + tick().

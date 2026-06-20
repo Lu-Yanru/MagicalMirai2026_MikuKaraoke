@@ -32,7 +32,7 @@
         <span id="score">0</span>
         <span id="combo">0x</span>
       </div>
-      <button id="btn-play" aria-label="Play or pause the song">▶ Play</button>
+      <button id="btn-play" aria-label="Play or pause the song"><img id="btn-play-img" src="/src/assets/ui/play.png" alt="▶ Play" /></button>
     </header>
 
     <!-- ── Stage (72vh) ──────────────────────────────────────────────────── -->
@@ -103,10 +103,10 @@
          touch-action: manipulation and -webkit-tap-highlight-color are set in
          CSS to eliminate the 300ms tap delay and grey flash on mobile.        -->
     <div id="input-pad" role="group" aria-label="Directional input buttons">
-      <button data-direction="left"  aria-label="Left">←</button>
-      <button data-direction="down"  aria-label="Down">↓</button>
-      <button data-direction="up"    aria-label="Up">↑</button>
-      <button data-direction="right" aria-label="Right">→</button>
+      <button data-direction="left"  aria-label="Left"><img src="/src/assets/ui/input_left.png"  alt="←" /></button>
+      <button data-direction="down"  aria-label="Down"><img src="/src/assets/ui/input_down.png"  alt="↓" /></button>
+      <button data-direction="up"    aria-label="Up"><img src="/src/assets/ui/input_up.png"    alt="↑" /></button>
+      <button data-direction="right" aria-label="Right"><img src="/src/assets/ui/input_right.png" alt="→" /></button>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

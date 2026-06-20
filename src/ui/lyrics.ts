@@ -14,7 +14,27 @@
  */
 
 import type { IChar } from "textalive-app-api";
-import type { PhraseRow } from "../types";
+import type { PhraseRow, Direction } from "../types";
+
+// ─── Cue arrow images ─────────────────────────────────────────────────────────
+//
+// Hand-drawn 256×256 transparent PNGs (contest rules prohibit AI-generated
+// art). Imported as ES modules — not raw string paths — so Vite's static
+// analysis can see them, hash them, and copy them into dist/ at build time.
+// This mirrors the existing pattern in singer-animation.ts. A template
+// literal like `/src/assets/ui/arrow_${direction}.png` would NOT be reliably
+// bundled by Vite, so each direction gets its own static import instead.
+import arrowUp from "/src/assets/ui/arrow_up.png";
+import arrowDown from "/src/assets/ui/arrow_down.png";
+import arrowLeft from "/src/assets/ui/arrow_left.png";
+import arrowRight from "/src/assets/ui/arrow_right.png";
+
+const ARROW_IMAGES: Record<Direction, string> = {
+  up: arrowUp,
+  down: arrowDown,
+  left: arrowLeft,
+  right: arrowRight,
+};
 
 // ─── Internal per-character DOM reference ────────────────────────────────────
 
@@ -316,10 +336,6 @@ export function initLyrics(phraseRows: PhraseRow[]): void {
     // so left: 0% and left: 100% map to the inset edges, not the outer edges.
     // This prevents cues at the phrase start or end from hanging outside the
     // visible bar area.
-    const DIRECTION_CHARS: Record<string, string> = {
-      up: "↑", down: "↓", left: "←", right: "→",
-    };
-
     const barTrack = document.createElement("div");
     barTrack.className = "bar-track";
 
@@ -330,7 +346,17 @@ export function initLyrics(phraseRows: PhraseRow[]): void {
       const cueEl = document.createElement("div");
       cueEl.className = "cue";
       cueEl.style.left = `${cue.barPosition}%`;
-      cueEl.textContent = DIRECTION_CHARS[cue.direction] ?? "?";
+
+      // Pre-resolve display: the hand-drawn arrow image for this cue's
+      // direction. rating.ts's resolveCue() sets el.textContent on resolve,
+      // which DOM-natively clears this <img> child and replaces it with the
+      // rating-word text node — no change needed in rating.ts itself.
+      const cueImg = document.createElement("img");
+      cueImg.className = "cue-arrow-img";
+      cueImg.src = ARROW_IMAGES[cue.direction];
+      cueImg.alt = "";
+      cueEl.appendChild(cueImg);
+
       cue.element = cueEl;
       barInner.appendChild(cueEl);   // child of inner, not outer
     }
