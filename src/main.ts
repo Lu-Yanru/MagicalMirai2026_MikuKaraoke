@@ -344,6 +344,7 @@ player.addListener({
   onStop() {
     if (endScreenShown) return;
     endScreenShown = true;
+    player.requestPause();
     showEndScreen(scoreManager.state);
   },
 });
@@ -356,6 +357,7 @@ player.addListener({
 
 // ─── Play button ──────────────────────────────────────────────────────────────
 btnPlay.addEventListener("click", () => {
+  if (endScreenShown) return;
   if (player.isPlaying) {
     player.requestPause();
   } else {
@@ -381,6 +383,8 @@ const KEY_TO_DIRECTION: Record<string, Direction> = {
 };
 
 document.addEventListener("keydown", (e) => {
+  if (endScreenShown) return;
+
   const direction = KEY_TO_DIRECTION[e.key];
   if (!direction) return;
   e.preventDefault();
@@ -409,6 +413,8 @@ document.addEventListener("keydown", (e) => {
 // keeps the button looking pressed for the full hold duration without any
 // extra debouncing logic.
 document.addEventListener("keyup", (e) => {
+  if (endScreenShown) return;
+
   const direction = KEY_TO_DIRECTION[e.key];
   if (!direction) return;
   DIRECTION_BUTTONS[direction].classList.remove("key-pressed");
@@ -435,6 +441,8 @@ const DIRECTION_BUTTONS: Record<Direction, HTMLButtonElement> = {
 };
 
 function handlePadInput(target: EventTarget | null): void {
+  if (endScreenShown) return;
+
   if (!(target instanceof HTMLElement)) return;
   const dir = target.closest("button")?.dataset["direction"] as Direction | undefined;
   if (!dir) return;
@@ -619,8 +627,11 @@ function tick(): void {
   // after the song ends and would re-trigger showEndScreen() repeatedly.
   // Returning early skips phrase-advance / lyric / singer-animation work for
   // the remainder of this and all future frames once the song has ended.
-  if (!endScreenShown && position >= player.video.endTime) {
+  if (endScreenShown) return;
+
+  if (position >= player.video.endTime) {
     endScreenShown = true;
+    player.requestPause();
     showEndScreen(scoreManager.state);
     return;
   }
