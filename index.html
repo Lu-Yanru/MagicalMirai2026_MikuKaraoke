@@ -9,8 +9,8 @@
     -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>Rhythm Lyric Game — Magical Mirai 2026</title>
-    <script type="module" crossorigin src="/MagicalMirai2026_MikuKaraoke/assets/index-Dg1f7XXs.js"></script>
-    <link rel="stylesheet" crossorigin href="/MagicalMirai2026_MikuKaraoke/assets/index-CyHHrZQk.css">
+    <script type="module" crossorigin src="/MagicalMirai2026_MikuKaraoke/assets/index-BaDRkcki.js"></script>
+    <link rel="stylesheet" crossorigin href="/MagicalMirai2026_MikuKaraoke/assets/index-Dp1pGmto.css">
   </head>
   <body>
 
@@ -108,6 +108,65 @@
       <button data-direction="down"  aria-label="Down"><img src="/MagicalMirai2026_MikuKaraoke/assets/input_down-BbGSe1Nf.png"  alt="↓" /></button>
       <button data-direction="up"    aria-label="Up"><img src="/MagicalMirai2026_MikuKaraoke/assets/input_up-CZvH7wtW.png"    alt="↑" /></button>
       <button data-direction="right" aria-label="Right"><img src="/MagicalMirai2026_MikuKaraoke/assets/input_right-Cw-GD1tM.png" alt="→" /></button>
+    </div>
+
+   <!-- ── End screen ──────────────────────────────────────────────────────────
+         Shown automatically when the song finishes (wired in main.ts via
+         player.onStop — see TODO comment there about verifying onStop's exact
+         firing semantics against the TextAlive docs). Hidden by default using
+         the same .hidden class /lyric-overlay already uses, toggled by JS.
+         All text content (title, score, percentage, letter, breakdown, singer
+         image) is populated by showEndScreen() in main.ts — nothing here is
+         static except the row labels. -->
+    <div id="screen-end" class="hidden">
+      <div id="end-screen-panel">
+        <div id="end-title"></div>
+
+        <div id="end-columns">
+          <!-- Left column: total score, percentage, big letter rating -->
+          <div id="end-col-score">
+            <div id="end-score-label">SCORE</div>
+            <div id="end-score-value">0</div>
+            <div id="end-percentage">0.0%</div>
+            <div id="end-letter">D</div>
+          </div>
+
+          <!-- Middle column: rating breakdown + max combo -->
+          <div id="end-col-breakdown">
+            <div class="end-breakdown-row">
+              <span class="end-breakdown-label" id="end-label-perfect">PERFECT</span>
+              <span class="end-breakdown-count" id="end-count-perfect">0</span>
+            </div>
+            <div class="end-breakdown-row">
+              <span class="end-breakdown-label" id="end-label-great">GREAT</span>
+              <span class="end-breakdown-count" id="end-count-great">0</span>
+            </div>
+            <div class="end-breakdown-row">
+              <span class="end-breakdown-label" id="end-label-good">GOOD</span>
+              <span class="end-breakdown-count" id="end-count-good">0</span>
+            </div>
+            <div class="end-breakdown-row">
+              <span class="end-breakdown-label" id="end-label-bad">BAD</span>
+              <span class="end-breakdown-count" id="end-count-bad">0</span>
+            </div>
+            <div class="end-breakdown-row">
+              <span class="end-breakdown-label" id="end-label-miss">MISS</span>
+              <span class="end-breakdown-count" id="end-count-miss">0</span>
+            </div>
+            <div class="end-breakdown-row" id="end-row-max-combo">
+              <span class="end-breakdown-label">MAX COMBO</span>
+              <span class="end-breakdown-count" id="end-max-combo">0</span>
+            </div>
+          </div>
+
+          <!-- Right column: singer image matching the letter rating -->
+          <div id="end-col-singer">
+            <img id="end-singer-img" src="" alt="" />
+          </div>
+        </div>
+
+        <button id="btn-play-again">Play again</button>
+      </div>
     </div>
 
   </body>
