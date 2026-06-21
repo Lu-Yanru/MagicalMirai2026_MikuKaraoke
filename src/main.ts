@@ -14,6 +14,8 @@ import { Player, type IPlayerApp, type IVideo } from "textalive-app-api";
 import { buildSchedule } from "./game/scheduler";
 import { ScoreManager } from "./game/scoring";
 import { getSingerState } from "./game/singer";
+import { CURRENT_SONG } from "./game/song";
+import { computeEndScreenData } from "./game/end-screen";
 import {
   initSingerAnimation,
   updateSingerAnimation,
@@ -27,6 +29,7 @@ import {
 } from "./ui/vocal-presence";
 import { armCues, disarmCues } from "./ui/arrows";
 import { initLyrics, activatePhrase, updateLyrics } from "./ui/lyrics";
+import { RATING_COLORS } from "./ui/rating";
 import type { PhraseRow, Direction, ScoreState, RatingType, SingerState } from "./types";
 
 import playIcon from "/src/assets/ui/play.png";
@@ -35,6 +38,24 @@ import pauseIcon from "/src/assets/ui/pause.png";
 import headHappyBig from "/src/assets/singer/head_happy_mouth_big.png";
 import headIdle from "/src/assets/singer/head_idle.png";
 import headSad from "/src/assets/singer/head_sad.png"
+
+import singerHappyImg   from "/src/assets/singer/singer_happy.png";
+import singerSingingImg from "/src/assets/singer/singer_singing.png";
+import singerIdleImg    from "/src/assets/singer/singer_idle.png";
+import singerSadImg     from "/src/assets/singer/singer_sad.png";
+import singerAngryImg   from "/src/assets/singer/singer_angry.png";
+
+// Resolves the filename returned by getSingerImageForLetter() (end-screen.ts)
+// to its bundled Vite asset URL. A plain Record, not a template-literal path,
+// for the same reason ARROW_IMAGES in lyrics.ts uses one: Vite's static
+// analysis needs each import written out explicitly to bundle and hash it.
+const END_SINGER_IMAGES: Record<string, string> = {
+  "singer_happy.png":   singerHappyImg,
+  "singer_singing.png": singerSingingImg,
+  "singer_idle.png":    singerIdleImg,
+  "singer_sad.png":     singerSadImg,
+  "singer_angry.png":   singerAngryImg,
+};
 
 // ─── DOM references ───────────────────────────────────────────────────────────
 //
@@ -62,6 +83,36 @@ const btnPlayImg = document.getElementById("btn-play-img") as HTMLImageElement;
 const singerContainer = document.getElementById("singer-container") as HTMLElement;
 const singerHead      = document.getElementById("singer-head")      as HTMLImageElement;
 
+// ── End-screen DOM refs ───────────────────────────────────────────────────────
+const songTitleEl   = document.getElementById("song-title")    as HTMLElement;
+const screenEnd      = document.getElementById("screen-end")    as HTMLElement;
+const endTitleEl     = document.getElementById("end-title")     as HTMLElement;
+const endScoreValueEl = document.getElementById("end-score-value") as HTMLElement;
+const endPercentageEl = document.getElementById("end-percentage")  as HTMLElement;
+const endLetterEl     = document.getElementById("end-letter")      as HTMLElement;
+const endMaxComboEl   = document.getElementById("end-max-combo")   as HTMLElement;
+const endSingerImgEl  = document.getElementById("end-singer-img")  as HTMLImageElement;
+const btnPlayAgain     = document.getElementById("btn-play-again")  as HTMLButtonElement;
+
+// Count <span> + label <span> pairs for each rating tier, keyed the same way
+// ScoreState.counts is keyed (RatingType), so showEndScreen() can loop instead
+// of repeating five near-identical lines.
+const END_COUNT_ELS: Record<RatingType, HTMLElement> = {
+  Perfect: document.getElementById("end-count-perfect") as HTMLElement,
+  Great:   document.getElementById("end-count-great")   as HTMLElement,
+  Good:    document.getElementById("end-count-good")    as HTMLElement,
+  Bad:     document.getElementById("end-count-bad")     as HTMLElement,
+  Miss:    document.getElementById("end-count-miss")    as HTMLElement,
+};
+
+const END_LABEL_ELS: Record<RatingType, HTMLElement> = {
+  Perfect: document.getElementById("end-label-perfect") as HTMLElement,
+  Great:   document.getElementById("end-label-great")   as HTMLElement,
+  Good:    document.getElementById("end-label-good")    as HTMLElement,
+  Bad:     document.getElementById("end-label-bad")     as HTMLElement,
+  Miss:    document.getElementById("end-label-miss")    as HTMLElement,
+};
+
 // ─── Game state ───────────────────────────────────────────────────────────────
 
 // Full ordered list of PhraseRows built by buildSchedule() in onVideoReady.
@@ -77,6 +128,11 @@ let nextIndex   = 1;
 //   true  → active phrase is in phraseTopSlot
 //   false → active phrase is in phraseBottomSlot
 let activeIsTop = true;
+
+// Total cue count across all phrases, set once in onVideoReady right after
+// buildSchedule() runs. Needed by end-screen.ts's getMaxScore() — see that
+// module's header comment for why max score isn't tracked anywhere else.
+let totalCueCount = 0;
 
 // True while the player is seeking (scrubbing). The rAF loop skips lyric
 // updates during a seek to avoid showing a half-filled clip-path on a
@@ -115,6 +171,14 @@ let activePreBlinkVisible = false;
 // the true/false transition, not redundantly every frame.
 let lyricWasActive = false;
 
+// Tracks whether the end screen has already been shown for this playthrough.
+// Needed because tick() detects natural end-of-song by position (position >=
+// player.video.endTime), and that condition stays true on every frame after
+// the song ends — without this guard showEndScreen() would be called
+// repeatedly forever. Reset only happens via location.reload() (the "Play
+// again" button), which is fine since this is a one-shot per page load.
+let endScreenShown = false;
+
 // ─── Singer state (Chunk 8 step 3) ───────────────────────────────────────────
 //
 // Tracks the singer's current visual state so we only swap the head src and
@@ -152,18 +216,16 @@ player.addListener({
   // the song URL itself). When false — standalone dev — we load a song manually.
   onAppReady(app: IPlayerApp) {
     if (!app.managed) {
-      // TAKEOVER / Twinfield
-      player.createFromSongUrl("https://piapro.jp/t/E2i3/20251215092113", {
-        video: {
-          beatId: 4827298,
-          chordId: 2963759,
-          repetitiveSegmentId: 3086266,
-          lyricId: 126533,
-          lyricDiffId: 28631
-        },
+      player.createFromSongUrl(CURRENT_SONG.songUrl, {
+        video: CURRENT_SONG.video,
       });
-    }
-  },
+     }
+    // Set the HUD title regardless of app.managed — if running inside the
+    // TextAlive editor (app.managed === true), the editor supplies its own
+    // song, but CURRENT_SONG.title is still the best available label until
+    // song.ts grows a way to read the managed song's actual title.
+    songTitleEl.textContent = CURRENT_SONG.title;
+   },
 
   // ── onVideoReady ─────────────────────────────────────────────────────────
   // Called when the song map and all lyric timing data are fully loaded.
@@ -177,6 +239,13 @@ player.addListener({
 
     // Build the full cue schedule (one PhraseRow per IPhrase).
     phraseRows = buildSchedule(player);
+
+    // Total cues across the whole song — needed by end-screen.ts for max
+    // score (totalCueCount × 300, i.e. every cue rated Perfect). Computed
+    // once here because cues are mutated (resolved) during play; this count
+    // must be captured before that happens, not derived later from state.
+    totalCueCount = phraseRows.reduce((sum, row) => sum + row.cues.length, 0);
+
     console.log(
       "schedule:",
       phraseRows.map((row) => ({
@@ -260,6 +329,23 @@ player.addListener({
     }
     btnPlayImg.src = playIcon;    // button reverts to "play" while paused
   },
+
+  // Show the end screen when the song stops.
+  //
+  // Secondary/defensive trigger only — CONFIRMED via live testing that
+  // onStop does NOT fire on natural end-of-song playback in this SDK
+  // version (a console.log placed here never printed during a full
+  // playthrough). The primary end-of-song detection is now the
+  // position >= player.video.endTime check in tick(). This handler is kept
+  // in case a future change adds an explicit player.requestStop() call
+  // (e.g. a "skip song" button), which onStop may still correctly cover —
+  // that path has not been tested. Guarded by the same endScreenShown flag
+  // so it can never double-trigger the end screen alongside the tick() path.
+  onStop() {
+    if (endScreenShown) return;
+    endScreenShown = true;
+    showEndScreen(scoreManager.state);
+  },
 });
 
 player.addListener({
@@ -275,6 +361,11 @@ btnPlay.addEventListener("click", () => {
   } else {
     player.requestPlay();
   }
+});
+
+// ─── Play again button (end screen) ──────────────────────────────────────────
+btnPlayAgain.addEventListener("click", () => {
+  location.reload();
 });
 
 // ─── Keyboard input ───────────────────────────────────────────────────────────
@@ -406,6 +497,43 @@ function applySingerExpression(state: SingerState, lyricActive: boolean): void {
   setSingerExpressionState(state);
 }
 
+// ─── End screen ───────────────────────────────────────────────────────────────
+//
+// Populates and shows #screen-end from the final ScoreState. Deliberately
+// does NOT touch singerHead / singerContainer / the beat-driven animation
+// state in singer-animation.ts — the end-screen singer image (right column)
+// is a separate static result image (singer_happy.png etc., see end-screen.ts)
+// from the live animated gameplay sprite, so the two are fully independent.
+//
+// computeEndScreenData() (pure, in end-screen.ts) does all the rating math;
+// this function only writes the result into the DOM.
+function showEndScreen(state: ScoreState): void {
+  const data = computeEndScreenData(state, totalCueCount);
+
+  endTitleEl.textContent = CURRENT_SONG.title;
+  endScoreValueEl.textContent = String(data.score);
+  endPercentageEl.textContent = `${data.percentage.toFixed(1)}%`;
+
+  endLetterEl.textContent = data.letter;
+  endLetterEl.style.color = data.letterColor;
+
+  // Breakdown rows: count + label, label colored to match the in-game
+  // rating-pop color for that tier (RATING_COLORS, defined once in rating.ts
+  // and imported here rather than re-specified, so the two can never drift
+  // apart).
+  for (const ratingKey of Object.keys(END_COUNT_ELS) as RatingType[]) {
+    END_COUNT_ELS[ratingKey].textContent = String(data.counts[ratingKey]);
+    END_LABEL_ELS[ratingKey].style.color = RATING_COLORS[ratingKey];
+  }
+
+  endMaxComboEl.textContent = String(data.maxCombo);
+
+  endSingerImgEl.src = END_SINGER_IMAGES[data.singerImageFile];
+  endSingerImgEl.alt = `${data.letter} rank`;
+
+  screenEnd.classList.remove("hidden");
+}
+
 // ─── HUD + singer update on scoreupdate ──────────────────────────────────────
 //
 // 'scoreupdate' is dispatched by ScoreManager.applyRating() after every rating.
@@ -481,6 +609,20 @@ function tick(): void {
   } else {
     position = rawPosition;
     lastRenderedPosition = rawPosition;
+  }
+
+  // ── Natural end-of-song detection ─────────────────────────────────────────
+  // player.onStop (wired in the player.addListener block below) was tested
+  // live and confirmed to NOT fire on natural end-of-song playback in this
+  // SDK version — only position-based detection works. endScreenShown is a
+  // one-shot guard: without it, this condition stays true on every frame
+  // after the song ends and would re-trigger showEndScreen() repeatedly.
+  // Returning early skips phrase-advance / lyric / singer-animation work for
+  // the remainder of this and all future frames once the song has ended.
+  if (!endScreenShown && position >= player.video.endTime) {
+    endScreenShown = true;
+    showEndScreen(scoreManager.state);
+    return;
   }
 
   // ── Phrase advance ────────────────────────────────────────────────────────

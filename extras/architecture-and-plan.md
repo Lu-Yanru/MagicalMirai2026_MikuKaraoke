@@ -586,11 +586,11 @@ x 5. Add CSS for singer bounce:
    - Optionally show song selection if multiple songs are implemented.
    - On click/tap: hide the overlay, call `player.requestPlay()`.
 
-7. Add an end screen overlay (`#screen-end`) hidden initially:
+x 7. Add an end screen overlay (`#screen-end`) hidden initially:
    - Show: total score, max combo, and a breakdown of each rating count.
    - Add a "Play again" button that calls `location.reload()`.
 
-8. Wire `player.addListener({ onStop: () => showEndScreen(scoreManager.state) })`.
+x 8. Wire `player.addListener({ onStop: () => showEndScreen(scoreManager.state) })`.
 
 9. Final responsive check: simulate iPhone SE (375×667) in DevTools. Verify
    buttons are tappable, lyrics are readable, singer is visible above the

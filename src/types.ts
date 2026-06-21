@@ -140,8 +140,14 @@ export interface ScoreState {
  *   happy — Triggered by a Perfect hit or a combo of 10 or more.
  *   singing — Active while combo is between 5 and 9 (inclusive).
  *   sad   — Triggered by a Miss or Bad rating, or when combo drops to 0.
+ *   angry   — End-screen only. Not produced by getSingerState() during
+ *             gameplay — see singer.ts. Used solely for a D-rank result
+ *             (final score < 50% of max), where end-screen.ts maps the
+ *             rating letter directly to this state rather than deriving it
+ *             from ScoreState the way the other four are derived in-game.
+ *
  *
  * State transitions are handled by singer.ts and applied by swapping the
  * <img> src attribute in main.ts.
  */
-export type SingerState = "idle" | "happy" | "singing" | "sad";
+export type SingerState = "idle" | "happy" | "singing" | "sad" | "angry";

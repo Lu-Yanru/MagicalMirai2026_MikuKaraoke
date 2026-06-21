@@ -384,3 +384,181 @@ body {
 .singer-bounce {
   animation: singerBounce 200ms ease-out;
 } */
+
+/* ─── End screen ─────────────────────────────────────────────────────────────
+   Full-viewport overlay shown when the song ends (player.onStop — see TODO
+   in main.ts re: verifying exact onStop semantics in the TextAlive docs).
+   Hidden by default via the existing .hidden utility class (same on/off
+   pattern as #lyric-overlay). Sits above everything else (#input-pad is the
+   highest z-index among the three base siblings only because they're normal
+   flow, not stacked — this overlay uses position: fixed so it floats above
+   all three regardless of flow order).
+
+   Layout mirrors the reference image: title centered on top, then three
+   columns — score/percentage/letter (left), breakdown + max combo (middle),
+   singer image (right).                                                       */
+#screen-end {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  transition: opacity 200ms ease;
+}
+
+#end-screen-panel {
+  width: min(92vw, 720px);
+  max-height: 92vh;
+  overflow-y: auto;
+  background: rgba(20, 20, 28, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+#end-title {
+  font-size: 1.3rem;
+  font-weight: bold;
+  text-align: center;
+  letter-spacing: 0.05em;
+}
+
+#end-columns {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* ── Left column: score / percentage / letter ──────────────────────────── */
+#end-col-score {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+#end-score-label {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  letter-spacing: 0.1em;
+}
+
+#end-score-value {
+  font-size: 1.8rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: bold;
+}
+
+#end-percentage {
+  font-size: 1.1rem;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Letter color is set inline per result by main.ts (gold/blue/green/purple/
+   white — see RATING_LETTER_COLORS in end-screen.ts). font-weight: bold is
+   the one fixed requirement from the spec, kept here rather than inline. */
+#end-letter {
+  font-size: 4rem;
+  font-weight: bold;
+  line-height: 1;
+}
+
+/* ── Middle column: rating breakdown + max combo ────────────────────────── */
+#end-col-breakdown {
+  flex: 1.4;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.end-breakdown-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.end-breakdown-count {
+  width: 3.5ch;
+  text-align: left;
+  opacity: 0.9;
+}
+
+/* Label color is set inline per row by main.ts, copied directly from
+   RATING_COLORS in rating.ts so the end-screen breakdown always matches the
+   in-game rating-pop colors — one definition (rating.ts), two consumers. */
+.end-breakdown-label {
+  width: 15ch;
+  text-align: left;
+  font-weight: bold;
+  letter-spacing: 0.04em;
+  font-size: 0.95rem;
+}
+
+#end-row-max-combo {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+#end-row-max-combo .end-breakdown-label {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.85rem;
+}
+
+/* ── Right column: singer image ─────────────────────────────────────────── */
+#end-col-singer {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+#end-singer-img {
+  width: 100%;
+  max-width: 160px;
+  height: auto;
+  object-fit: contain;
+}
+
+#btn-play-again {
+  padding: 0.6rem 2rem;
+  font-size: 1rem;
+  font-weight: bold;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+#btn-play-again:hover  { background: rgba(255, 255, 255, 0.22); }
+#btn-play-again:active { transform: scale(0.95); }
+
+/* Narrow-viewport fallback: stack columns instead of cramming three side by
+   side. Threshold chosen to match the existing landscape-phone concerns
+   noted elsewhere in this file (e.g. .phrase-text-wrap's 375px references). */
+@media (max-width: 480px) {
+  #end-columns {
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+  }
+  #end-col-score {
+    align-items: center;
+  }
+}

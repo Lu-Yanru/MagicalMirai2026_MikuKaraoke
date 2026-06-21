@@ -109,6 +109,65 @@
       <button data-direction="right" aria-label="Right"><img src="/src/assets/ui/input_right.png" alt="→" /></button>
     </div>
 
+   <!-- ── End screen ──────────────────────────────────────────────────────────
+         Shown automatically when the song finishes (wired in main.ts via
+         player.onStop — see TODO comment there about verifying onStop's exact
+         firing semantics against the TextAlive docs). Hidden by default using
+         the same .hidden class /lyric-overlay already uses, toggled by JS.
+         All text content (title, score, percentage, letter, breakdown, singer
+         image) is populated by showEndScreen() in main.ts — nothing here is
+         static except the row labels. -->
+    <div id="screen-end" class="hidden">
+      <div id="end-screen-panel">
+        <div id="end-title"></div>
+
+        <div id="end-columns">
+          <!-- Left column: total score, percentage, big letter rating -->
+          <div id="end-col-score">
+            <div id="end-score-label">SCORE</div>
+            <div id="end-score-value">0</div>
+            <div id="end-percentage">0.0%</div>
+            <div id="end-letter">D</div>
+          </div>
+
+          <!-- Middle column: rating breakdown + max combo -->
+          <div id="end-col-breakdown">
+            <div class="end-breakdown-row">
+              <span class="end-breakdown-label" id="end-label-perfect">PERFECT</span>
+              <span class="end-breakdown-count" id="end-count-perfect">0</span>
+            </div>
+            <div class="end-breakdown-row">
+              <span class="end-breakdown-label" id="end-label-great">GREAT</span>
+              <span class="end-breakdown-count" id="end-count-great">0</span>
+            </div>
+            <div class="end-breakdown-row">
+              <span class="end-breakdown-label" id="end-label-good">GOOD</span>
+              <span class="end-breakdown-count" id="end-count-good">0</span>
+            </div>
+            <div class="end-breakdown-row">
+              <span class="end-breakdown-label" id="end-label-bad">BAD</span>
+              <span class="end-breakdown-count" id="end-count-bad">0</span>
+            </div>
+            <div class="end-breakdown-row">
+              <span class="end-breakdown-label" id="end-label-miss">MISS</span>
+              <span class="end-breakdown-count" id="end-count-miss">0</span>
+            </div>
+            <div class="end-breakdown-row" id="end-row-max-combo">
+              <span class="end-breakdown-label">MAX COMBO</span>
+              <span class="end-breakdown-count" id="end-max-combo">0</span>
+            </div>
+          </div>
+
+          <!-- Right column: singer image matching the letter rating -->
+          <div id="end-col-singer">
+            <img id="end-singer-img" src="" alt="" />
+          </div>
+        </div>
+
+        <button id="btn-play-again">Play again</button>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
