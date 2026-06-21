@@ -11,11 +11,14 @@
  */
 
 import { Player, type IPlayerApp, type IVideo } from "textalive-app-api";
+import type { Timer } from "textalive-app-api";
+
 import { buildSchedule } from "./game/scheduler";
 import { ScoreManager } from "./game/scoring";
 import { getSingerState } from "./game/singer";
-import { CURRENT_SONG } from "./game/song";
+import { SONGS, getCurrentSong, setCurrentSong, type SongDescriptor } from "./game/song";
 import { computeEndScreenData } from "./game/end-screen";
+import { initStartScreen, showStartScreen, hideStartScreen } from "./ui/start-screen";
 import {
   initSingerAnimation,
   updateSingerAnimation,
@@ -72,19 +75,13 @@ const btnPlayImg = document.getElementById("btn-play-img") as HTMLImageElement;
 
 // ── Singer DOM refs (Chunk 8) ─────────────────────────────────────────────────
 //
-// singerContainer: the <div> wrapping all six layer <img> elements.
-//   The bounce animation is applied here so all layers move together as a unit.
-//   It carries translateX(-50%) for centering; singerBounce keyframe preserves
-//   that translation explicitly alongside the scale.
-//
 // singerHead: the topmost layer — head_idle / head_happy / head_singing / head_sad.
 //   Only this layer's src is swapped on state change. Body, arms, and pigtails
 //   stay on their default src; arm animations will be added in later steps.
-const singerContainer = document.getElementById("singer-container") as HTMLElement;
 const singerHead      = document.getElementById("singer-head")      as HTMLImageElement;
 
 // ── End-screen DOM refs ───────────────────────────────────────────────────────
-const songTitleEl   = document.getElementById("song-title")    as HTMLElement;
+const songTitleEl = document.getElementById("song-title") as HTMLElement;
 const screenEnd      = document.getElementById("screen-end")    as HTMLElement;
 const endTitleEl     = document.getElementById("end-title")     as HTMLElement;
 const endScoreValueEl = document.getElementById("end-score-value") as HTMLElement;
@@ -93,6 +90,7 @@ const endLetterEl     = document.getElementById("end-letter")      as HTMLElemen
 const endMaxComboEl   = document.getElementById("end-max-combo")   as HTMLElement;
 const endSingerImgEl  = document.getElementById("end-singer-img")  as HTMLImageElement;
 const btnPlayAgain     = document.getElementById("btn-play-again")  as HTMLButtonElement;
+const btnMainMenu      = document.getElementById("btn-main-menu")   as HTMLButtonElement;
 
 // Count <span> + label <span> pairs for each rating tier, keyed the same way
 // ScoreState.counts is keyed (RatingType), so showEndScreen() can loop instead
@@ -191,6 +189,11 @@ let currentSingerState: SingerState = "idle";
 // Communicates outward via the 'scoreupdate' CustomEvent — no DOM refs inside.
 const scoreManager = new ScoreManager();
 
+// True while running inside the TextAlive editor (app.managed). In that mode
+// the editor supplies the song itself, so the start screen is skipped
+// entirely and the original auto-load/manual-play behavior is preserved.
+let isManaged = false;
+
 // ─── Player instantiation ─────────────────────────────────────────────────────
 //
 // Player is the single entry point for the TextAlive App API.
@@ -208,6 +211,18 @@ const player = new Player({
   app: { token: import.meta.env.VITE_TEXTALIVE_TOKEN },
 });
 
+// ─── loadSong ─────────────────────────────────────────────────────────────────
+//
+// Single entry point for "start playing this song from t=0". Used for the
+// initial song selection AND for "Play Again" — both want the identical
+// reset-and-reload path, so there's exactly one of these rather than two
+// near-duplicate code paths.
+function loadSong(song: SongDescriptor): void {
+  setCurrentSong(song);
+  songTitleEl.textContent = song.title;
+  player.createFromSongUrl(song.songUrl, { video: song.video });
+}
+
 // ─── Player lifecycle listeners ───────────────────────────────────────────────
 player.addListener({
   // ── onAppReady ───────────────────────────────────────────────────────────
@@ -215,16 +230,16 @@ player.addListener({
   // app.managed is true when running inside the TextAlive editor (it supplies
   // the song URL itself). When false — standalone dev — we load a song manually.
   onAppReady(app: IPlayerApp) {
-    if (!app.managed) {
-      player.createFromSongUrl(CURRENT_SONG.songUrl, {
-        video: CURRENT_SONG.video,
-      });
-     }
-    // Set the HUD title regardless of app.managed — if running inside the
-    // TextAlive editor (app.managed === true), the editor supplies its own
-    // song, but CURRENT_SONG.title is still the best available label until
-    // song.ts grows a way to read the managed song's actual title.
-    songTitleEl.textContent = CURRENT_SONG.title;
+    isManaged = app.managed;
+    if (isManaged) {
+      // Running inside the TextAlive editor — it supplies the song itself.
+      // Skip the start screen and keep the original auto-load behavior.
+      hideStartScreen();
+      loadSong(getCurrentSong());
+    }
+    // Standalone (non-managed): do nothing here. The start screen is visible
+    // by default; loadSong() instead fires from the song-select buttons,
+    // wired via initStartScreen() near the bottom of this file.
    },
 
   // ── onVideoReady ─────────────────────────────────────────────────────────
@@ -236,6 +251,12 @@ player.addListener({
     let c = player.video.firstChar;
     while (c) { charCount++; c = c.next; }
     console.log(`beats: ${beatCount}, chars: ${charCount}`);
+
+    // Reset score state for the new song (covers both a fresh selection and
+    // "Play Again" on the same song) — previously nothing ever reset this.
+    scoreManager.reset();
+    scoreEl.textContent = "0";
+    comboEl.textContent = "0x";
 
     // Build the full cue schedule (one PhraseRow per IPhrase).
     phraseRows = buildSchedule(player);
@@ -308,6 +329,12 @@ player.addListener({
     setSingerLyricState(false); // arm_left_down — no phrase active yet
   },
 
+  onTimerReady(_timer: Timer) {
+    if (!isManaged) {
+      player.requestPlay();
+    }
+  },
+
   // Pause/resume lyric updates around seek operations.
   onVideoSeekStart() { isSeeking = true;  },
   onVideoSeekEnd()   { isSeeking = false; },
@@ -367,7 +394,17 @@ btnPlay.addEventListener("click", () => {
 
 // ─── Play again button (end screen) ──────────────────────────────────────────
 btnPlayAgain.addEventListener("click", () => {
-  location.reload();
+  screenEnd.classList.add("hidden");
+  loadSong(getCurrentSong());
+});
+
+// ─── Main menu button (end screen) ────────────────────────────────────────────
+btnMainMenu.addEventListener("click", () => {
+  screenEnd.classList.add("hidden");
+  if (player.isPlaying) {
+    player.requestStop();
+  }
+  showStartScreen();
 });
 
 // ─── Keyboard input ───────────────────────────────────────────────────────────
@@ -518,7 +555,7 @@ function applySingerExpression(state: SingerState, lyricActive: boolean): void {
 function showEndScreen(state: ScoreState): void {
   const data = computeEndScreenData(state, totalCueCount);
 
-  endTitleEl.textContent = CURRENT_SONG.title;
+  endTitleEl.textContent = getCurrentSong().title;
   endScoreValueEl.textContent = String(data.score);
   endPercentageEl.textContent = `${data.percentage.toFixed(1)}%`;
 
@@ -573,14 +610,6 @@ document.addEventListener("scoreupdate", (e) => {
     currentSingerState = newSingerState;
 
     applySingerExpression(newSingerState, lyricWasActive);
-
-    // Bounce all layers together via the container.
-    singerContainer.classList.remove("singer-bounce");
-    void singerContainer.offsetWidth; // force reflow
-    singerContainer.classList.add("singer-bounce");
-    singerContainer.addEventListener("animationend", () => {
-      singerContainer.classList.remove("singer-bounce");
-    }, { once: true });
   }
 });
 
@@ -794,4 +823,8 @@ function tick(): void {
 // runs for the lifetime of the page.
 tick();
 
-// TODO (Chunk 8 steps 4–8): Start screen, end screen, song selection, results.
+// ─── Start screen wiring ──────────────────────────────────────────────────────
+initStartScreen(SONGS, (song) => {
+  hideStartScreen();
+  loadSong(song);
+});

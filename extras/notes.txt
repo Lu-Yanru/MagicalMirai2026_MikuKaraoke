@@ -43,7 +43,7 @@ Chunk 8 issues:
 
 
 Additional features:
-- After the song finishes, show a summary screen with
+x After the song finishes, show a summary screen with
     - rating (S, A, B, C, D) + Miku face?
     - score
     - percentage

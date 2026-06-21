@@ -68,6 +68,19 @@ export class ScoreManager {
   // zero after a Miss" (non-null). Set to null at game start and after reset().
   lastRating: RatingType | null = null;
 
+  // ── reset ────────────────────────────────────────────────────────────────
+  // Called from main.ts's onVideoReady whenever a song is (re)loaded, so a
+  // fresh start or "Play Again" doesn't carry over the previous run's score.
+  reset(): void {
+    this.state = {
+      score: 0,
+      combo: 0,
+      maxCombo: 0,
+      counts: { Perfect: 0, Great: 0, Good: 0, Bad: 0, Miss: 0 },
+    };
+    this.lastRating = null;
+  }
+
   // ── handleInput ─────────────────────────────────────────────────────────────
 
   /**

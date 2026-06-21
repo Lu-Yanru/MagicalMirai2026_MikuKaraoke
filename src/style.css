@@ -368,26 +368,8 @@ body {
   pointer-events: none;
 }
 
-/* ─── Singer bounce animation ────────────────────────────────────────────────
-   Applied to #singer-container on singer state change so all six layers
-   animate together. Removed on animationend via a { once: true } JS listener.
-
-   translateX(-50%) is preserved in every keyframe step because CSS keyframe
-   animations replace the full transform property — omitting it would break
-   the horizontal centering mid-animation.                                      */
-/* @keyframes singerBounce {
-  0%   { transform: translateX(-50%) scale(1);    }
-  50%  { transform: translateX(-50%) scale(1.04); }
-  100% { transform: translateX(-50%) scale(1);    }
-}
-
-.singer-bounce {
-  animation: singerBounce 200ms ease-out;
-} */
-
 /* ─── End screen ─────────────────────────────────────────────────────────────
-   Full-viewport overlay shown when the song ends (player.onStop — see TODO
-   in main.ts re: verifying exact onStop semantics in the TextAlive docs).
+   Full-viewport overlay shown when the song ends.
    Hidden by default via the existing .hidden utility class (same on/off
    pattern as #lyric-overlay). Sits above everything else (#input-pad is the
    highest z-index among the three base siblings only because they're normal
@@ -516,7 +498,6 @@ body {
 
 #end-row-max-combo .end-breakdown-label {
   color: rgba(255, 255, 255, 0.85);
-  font-size: 0.85rem;
 }
 
 /* ── Right column: singer image ─────────────────────────────────────────── */
@@ -535,7 +516,8 @@ body {
   object-fit: contain;
 }
 
-#btn-play-again {
+#btn-play-again,
+#btn-main-menu {
   padding: 0.6rem 2rem;
   font-size: 1rem;
   font-weight: bold;
@@ -546,8 +528,15 @@ body {
   cursor: pointer;
 }
 
-#btn-play-again:hover  { background: rgba(255, 255, 255, 0.22); }
-#btn-play-again:active { transform: scale(0.95); }
+#btn-play-again:hover,
+#btn-main-menu:hover  { background: rgba(255, 255, 255, 0.22); }
+#btn-play-again:active,
+#btn-main-menu:active { transform: scale(0.95); }
+
+.end-buttons {
+  display: flex;
+  gap: 0.75rem;
+}
 
 /* Narrow-viewport fallback: stack columns instead of cramming three side by
    side. Threshold chosen to match the existing landscape-phone concerns
@@ -561,4 +550,96 @@ body {
   #end-col-score {
     align-items: center;
   }
+}
+
+/* ─── Screen overlays (start / how-to-play) ────────────────────────────
+   Shared base for full-viewport overlays. Each toggles via the existing
+   `.hidden` utility class already defined above. */
+.screen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #0a0a0f;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem;
+  text-align: center;
+  overflow-y: auto;
+}
+
+/* How-to-play screen render as modals above the start screen / game,
+   so they need a higher z-index and a translucent (not solid) backdrop —
+   the content behind should read as "paused", not gone. */
+#screen-how-to-play {
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.75);
+}
+
+#title-image {
+  max-width: 80vw;
+  max-height: 25vh;
+  object-fit: contain;
+}
+
+#landscape-hint {
+  font-size: 0.85rem;
+  opacity: 0.75;
+  max-width: 80vw;
+}
+
+#song-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 0.75rem;
+  width: min(90vw, 400px);
+}
+
+.song-button {
+  padding: 0.9rem 0.5rem;
+  font-size: 1rem;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.song-button:active { background: rgba(255, 255, 255, 0.3); }
+
+/* Third row: "How to Play" spans both grid columns. */
+.how-to-play-button {
+  grid-column: span 2;
+  opacity: 0.85;
+}
+
+.modal-box {
+  background: #16161f;
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: min(90vw, 480px);
+  max-height: 85vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.modal-box p {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  text-align: left;
+  margin: 0;
+}
+
+.modal-back-button button {
+  padding: 0.7rem;
+  font-size: 1rem;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
 }

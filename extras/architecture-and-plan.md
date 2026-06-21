@@ -581,7 +581,7 @@ x 5. Add CSS for singer bounce:
    .singer-bounce { animation: singerBounce 200ms ease-out; }
    ```
 
-6. Add a start screen overlay (`#screen-start`) shown before playback begins:
+x 6. Add a start screen overlay (`#screen-start`) shown before playback begins:
    - Display the game title, song name, and "Tap to start" prompt.
    - Optionally show song selection if multiple songs are implemented.
    - On click/tap: hide the overlay, call `player.requestPlay()`.
@@ -596,7 +596,7 @@ x 8. Wire `player.addListener({ onStop: () => showEndScreen(scoreManager.state) 
    buttons are tappable, lyrics are readable, singer is visible above the
    overlay, no overflow.
 
-10. Final accessibility pass:
+x 10. Final accessibility pass:
     - Add `aria-label` to all four input buttons (e.g. `aria-label="Up"`).
     - Ensure `<html lang="ja">` and a descriptive `<title>` are set.
 
