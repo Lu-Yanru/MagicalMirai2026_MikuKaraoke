@@ -8,11 +8,40 @@
       would break the fixed-height layout on iOS Safari.
     -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <title>Rhythm Lyric Game — Magical Mirai 2026</title>
-    <script type="module" crossorigin src="/MagicalMirai2026_MikuKaraoke/assets/index-BvSzy8i2.js"></script>
-    <link rel="stylesheet" crossorigin href="/MagicalMirai2026_MikuKaraoke/assets/index-Dp1pGmto.css">
+    <title>Miku Karaoke — Magical Mirai 2026</title>
+    <script type="module" crossorigin src="/MagicalMirai2026_MikuKaraoke/assets/index-DGzdh8gi.js"></script>
+    <link rel="stylesheet" crossorigin href="/MagicalMirai2026_MikuKaraoke/assets/index-B_n4EzIh.css">
   </head>
   <body>
+
+    <!-- ── Start screen (song select) ───────────────────────────────────────
+         Fixed full-viewport overlay, visible by default. Hidden via the
+         shared `.hidden` class once a song is picked. It sits ABOVE
+         #hud/#stage/#input-pad (which stay mounted underneath) rather than
+         toggling their visibility, so no existing markup needs to change. -->
+    <div id="screen-start" class="screen-overlay">
+      <img id="title-image" src="/MagicalMirai2026_MikuKaraoke/assets/title-cADC2MVq.png" alt="Miku Karaoke" />
+      <p id="landscape-hint">📱 For the best experience on mobile, rotate your phone to landscape mode.</p>
+
+      <div id="song-grid">
+        <button class="song-button" data-song-id="kotaete">こたえて</button>
+        <button class="song-button" data-song-id="after-the-curtain">アフター・ザ・カーテン</button>
+        <button class="song-button" data-song-id="sekai-saigo-no-ongakutai">世界最後の音楽隊</button>
+        <button class="song-button" data-song-id="takeover">TAKEOVER</button>
+        <button id="btn-how-to-play" class="song-button how-to-play-button">How to Play</button>
+      </div>
+    </div>
+
+    <!-- ── How-to-play modal ────────────────────────────────────────────────
+         Hidden by default. Opened from the start screen; closed by its own
+         back button, which returns to the start screen underneath it. -->
+    <div id="screen-how-to-play" class="screen-overlay hidden">
+      <div class="modal-box">
+        <h2>How to Play</h2>
+        <p> Press the corresponding arrow buttons ⬆️ ⬇️ ⬅️ ➡️ to the beat of the music, and sing the karaoke together with Hatsune Miku!</p>
+        <button id="btn-how-to-play-back" class="modal-back-button">Back</button>
+      </div>
+    </div>
 
     <!--
       Three siblings stack vertically to fill 100vh with no overlap possible:
@@ -165,7 +194,10 @@
           </div>
         </div>
 
-        <button id="btn-play-again">Play again</button>
+        <div class="end-buttons">
+          <button id="btn-play-again">Play again</button>
+          <button id="btn-main-menu">Main menu</button>
+        </div>
       </div>
     </div>
 
