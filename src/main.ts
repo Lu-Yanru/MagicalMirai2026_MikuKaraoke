@@ -143,6 +143,12 @@ let isSeeking = false;
 // inside the rAF loop without needing an extra onPlay callback.
 let prevIsPlaying = false;
 
+// Set to true the moment btnPlay's click handler calls requestPause(), and
+// consumed (reset to false) by tick() on the next frame it observes isPlaying
+// having gone false. Disambiguates a manual pause from the player stopping
+// itself at genuine end-of-track.
+let userInitiatedPause = false;
+
 // How many more frames to hold the last known-good position before trusting
 // player.timer.position again. Set on every play/resume because the Web Audio
 // clock takes a few frames to settle after requestPlay() returns.
@@ -194,6 +200,12 @@ const scoreManager = new ScoreManager();
 // entirely and the original auto-load/manual-play behavior is preserved.
 let isManaged = false;
 
+// True once a song has been loaded and the playback engine has signaled it's
+// ready (onTimerReady) at least once this session. requestStop()/requestPlay()
+// throw if called before that has ever happened — same underlying lifecycle
+// rule as onVideoReady-vs-onTimerReady, just applying to requestStop() too.
+let hasPlayableSong = false;
+
 // ─── Player instantiation ─────────────────────────────────────────────────────
 //
 // Player is the single entry point for the TextAlive App API.
@@ -220,6 +232,12 @@ const player = new Player({
 function loadSong(song: SongDescriptor): void {
   setCurrentSong(song);
   songTitleEl.textContent = song.title;
+  // Only stop a *previous* song — calling requestStop() before any song has
+  // ever finished loading (i.e. the very first call, on a fresh page) throws,
+  // because the playback engine doesn't exist yet at that point.
+  if (hasPlayableSong) {
+    player.requestStop();
+  }
   player.createFromSongUrl(song.songUrl, { video: song.video });
 }
 
@@ -330,6 +348,7 @@ player.addListener({
   },
 
   onTimerReady(_timer: Timer) {
+    hasPlayableSong = true;
     if (!isManaged) {
       player.requestPlay();
     }
@@ -386,6 +405,7 @@ player.addListener({
 btnPlay.addEventListener("click", () => {
   if (endScreenShown) return;
   if (player.isPlaying) {
+    userInitiatedPause = true;
     player.requestPause();
   } else {
     player.requestPlay();
@@ -401,7 +421,7 @@ btnPlayAgain.addEventListener("click", () => {
 // ─── Main menu button (end screen) ────────────────────────────────────────────
 btnMainMenu.addEventListener("click", () => {
   screenEnd.classList.add("hidden");
-  if (player.isPlaying) {
+  if (hasPlayableSong) {
     player.requestStop();
   }
   showStartScreen();
@@ -634,7 +654,19 @@ function tick(): void {
   if (isPlaying && !prevIsPlaying) {
     positionCooldownFrames = POSITION_COOLDOWN_FRAMES;
   }
+
+  // ── Natural end-of-song detection ─────────────────────────────────────────
+  if (!endScreenShown && prevIsPlaying && !isPlaying && !userInitiatedPause) {
+    endScreenShown = true;
+    showEndScreen(scoreManager.state);
+    prevIsPlaying = isPlaying;
+    return;
+  }
+
+  userInitiatedPause = false;
   prevIsPlaying = isPlaying;
+
+  if (endScreenShown) return;
 
   // ── Read position, suppressing stale timer values during cooldown ──────────
   const rawPosition = player.timer.position;
@@ -646,23 +678,6 @@ function tick(): void {
   } else {
     position = rawPosition;
     lastRenderedPosition = rawPosition;
-  }
-
-  // ── Natural end-of-song detection ─────────────────────────────────────────
-  // player.onStop (wired in the player.addListener block below) was tested
-  // live and confirmed to NOT fire on natural end-of-song playback in this
-  // SDK version — only position-based detection works. endScreenShown is a
-  // one-shot guard: without it, this condition stays true on every frame
-  // after the song ends and would re-trigger showEndScreen() repeatedly.
-  // Returning early skips phrase-advance / lyric / singer-animation work for
-  // the remainder of this and all future frames once the song has ended.
-  if (endScreenShown) return;
-
-  if (position >= player.video.endTime) {
-    endScreenShown = true;
-    player.requestPause();
-    showEndScreen(scoreManager.state);
-    return;
   }
 
   // ── Phrase advance ────────────────────────────────────────────────────────

@@ -643,3 +643,8 @@ body {
   color: #fff;
   cursor: pointer;
 }
+
+#landscape-icon {
+  height: 0.85rem;
+  object-fit: contain;
+}

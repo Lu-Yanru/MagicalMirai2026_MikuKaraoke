@@ -40,7 +40,10 @@ Chunk 8 issues:
         -> Add hold time between phrases
     - No singing when there is vocal audio but no lyrics (because e.g. repeat the ladt phrase)
         -> attempt to use getVocalAmplitude() but returns undefined.
-
+x Song stops abruptly as soon as the lyrics is finished but there is still instrumental part, due to current song end detection uses last phrase.
+-> onStop doesn't fire automatically so used endTime. endTime only stores the rendering/lyric timeline but not the end time of the song. Use !isPlaying not resulted in pause by user.
+- Main menu and play again on end screen plays the song and shows the lyrics but not reset the play mechanics. Cannot press buttons and the playhead doesn't move.
+- At the beginning of the song, the playhead starts moving early so the first phrase row always misses. Happens when start playing before everything is loaded.
 
 Additional features:
 x After the song finishes, show a summary screen with
@@ -50,5 +53,6 @@ x After the song finishes, show a summary screen with
     - break down of each rating
     - combo
     - Option to replay song, go back to main menu
-- Main menu to select song + instructions, full screen button, hint to use horizontal mode.
-- Animation to input pad: "pressed" either when keyboard or touch/mouse clicked.
+x Main menu to select song + instructions, full screen button, hint to use horizontal mode.
+x Animation to input pad: "pressed" either when keyboard or touch/mouse clicked.
+- Loading screen before the song so player does not eagerly press play button and cause misses in the first row.
