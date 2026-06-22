@@ -275,6 +275,18 @@ player.addListener({
     scoreManager.reset();
     scoreEl.textContent = "0";
     comboEl.textContent = "0x";
+    endScreenShown = false;
+
+    // Reset render-loop state that's otherwise only ever initialized once at
+    // module load. Without this, values left over from the PREVIOUS song
+    // poison tick() for the new one — see investigation note above.
+    lastRenderedPosition = 0;
+    positionCooldownFrames = 0;
+    prevIsPlaying = false;
+    userInitiatedPause = false;
+    isSeeking = false;
+    activePreBlinkIndex = 0;
+    activePreBlinkVisible = false;
 
     // Build the full cue schedule (one PhraseRow per IPhrase).
     phraseRows = buildSchedule(player);
