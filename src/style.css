@@ -757,3 +757,55 @@ body {
   opacity: 0.85;
   text-align: center;
 }
+
+/* ─── Fullscreen toggle button(s) ────────────────────────────────────────
+   Shared base for every fullscreen-toggle button (one in the HUD, one in
+   the start-screen hint). Same sizing convention as #btn-play (square,
+   text-content instead of an <img> since this is a UI control rather than
+   game art and doesn't need a hand-drawn asset). */
+.fullscreen-btn {
+  padding: 0;
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.fullscreen-btn:hover  { background: rgba(255, 255, 255, 0.22); }
+.fullscreen-btn:active {
+  background: rgba(255, 255, 255, 0.32);
+  transform: scale(0.95);
+}
+
+/* Hidden by default; main.ts only un-hides these if the Fullscreen API is
+   actually supported (it's missing on iOS Safari for non-video elements). */
+.fullscreen-btn.unsupported { display: none; }
+
+/* HUD variant: square, sized off the HUD row height — same as #btn-play. */
+#btn-fullscreen-hud {
+  height: 100%;
+  aspect-ratio: 1;
+  border-radius: 0;
+}
+
+/* Inline variant: sits inside a sentence of hint text, sized off that
+   text's own font-size rather than a fixed row height. */
+.fullscreen-btn-inline {
+  width: 1.8em;
+  height: 1.8em;
+  font-size: 1em;
+  border-radius: 6px;
+  vertical-align: middle;
+  margin-left: 0.2em;
+}
+
+#fullscreen-hint {
+  font-size: clamp(0.85rem, 1.4vmin, 1.15rem);
+  opacity: 0.75;
+  max-width: 80vw;
+}

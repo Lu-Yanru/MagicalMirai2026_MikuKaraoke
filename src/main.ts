@@ -426,6 +426,38 @@ btnPlay.addEventListener("click", () => {
   }
 });
 
+// ─── Fullscreen toggle ──────────────────────────────────────────────────────
+//
+// requestFullscreen() must be called from a real user gesture (click/tap) —
+// browsers reject it otherwise, so there is no way to force fullscreen
+// automatically on page load. iOS Safari additionally doesn't support the
+// Fullscreen API for ordinary page content at all (only <video> elements),
+// so both buttons are hidden there via feature detection rather than shown and
+// silently failing.
+//
+// Two buttons share this behavior — one in the HUD (visible during
+// gameplay), one in the start-screen hint (visible before a song is
+// picked) — querySelectorAll over the shared .fullscreen-btn class wires
+// both identically instead of duplicating the handler.
+const fullscreenButtons =
+  document.querySelectorAll<HTMLButtonElement>(".fullscreen-btn");
+
+if (!document.documentElement.requestFullscreen) {
+  fullscreenButtons.forEach((btn) => btn.classList.add("unsupported"));
+} else {
+  fullscreenButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        document.documentElement.requestFullscreen().catch((err) => {
+          console.warn("Fullscreen request failed:", err);
+        });
+      }
+    });
+  });
+}
+
 // ─── Play again button (end screen) ──────────────────────────────────────────
 btnPlayAgain.addEventListener("click", () => {
   screenEnd.classList.add("hidden");

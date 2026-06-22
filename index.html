@@ -21,8 +21,12 @@
     <div id="screen-start" class="screen-overlay">
       <img id="title-image" src="/src/assets/title.png" alt="Miku Karaoke" />
       <p id="landscape-hint">
-        For the best experience on mobile, rotate your phone to landscape mode.
+        For the best experience on mobile, rotate your phone to landscape mode
         <img id="landscape-icon" src="/src/assets/ui/mobile-landscape-mode-icon.png" alt="" />
+      </p>
+      <p id="fullscreen-hint">
+        and toggle full screen
+        <button id="btn-fullscreen-start" class="fullscreen-btn fullscreen-btn-inline" aria-label="Toggle fullscreen">⛶</button>
       </p>
 
       <div id="song-grid">
@@ -92,6 +96,7 @@
         <span id="score">0</span>
         <span id="combo">0x</span>
       </div>
+      <button id="btn-fullscreen-hud" class="fullscreen-btn" aria-label="Toggle fullscreen">⛶</button>
       <button id="btn-play" aria-label="Play or pause the song"><img id="btn-play-img" src="/src/assets/ui/play.png" alt="▶ Play" /></button>
     </header>
 
