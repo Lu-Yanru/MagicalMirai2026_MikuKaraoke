@@ -9,8 +9,8 @@
     -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>Miku Karaoke — Magical Mirai 2026</title>
-    <script type="module" crossorigin src="/MagicalMirai2026_MikuKaraoke/assets/index-UcdA5Y87.js"></script>
-    <link rel="stylesheet" crossorigin href="/MagicalMirai2026_MikuKaraoke/assets/index-DBulZQwU.css">
+    <script type="module" crossorigin src="/MagicalMirai2026_MikuKaraoke/assets/index-BNEpT2TB.js"></script>
+    <link rel="stylesheet" crossorigin href="/MagicalMirai2026_MikuKaraoke/assets/index--kpkA8j9.css">
   </head>
   <body>
 
@@ -21,8 +21,10 @@
          toggling their visibility, so no existing markup needs to change. -->
     <div id="screen-start" class="screen-overlay">
       <img id="title-image" src="/MagicalMirai2026_MikuKaraoke/assets/title-BrBirVlb.png" alt="Miku Karaoke" />
-      <p id="landscape-hint">For the best experience on mobile, rotate your phone to landscape mode.</p>
-      <img id="landscape-icon" src="/MagicalMirai2026_MikuKaraoke/assets/mobile-landscape-mode-icon-CbjDZqzF.png" alt="" />
+      <p id="landscape-hint">
+        For the best experience on mobile, rotate your phone to landscape mode.
+        <img id="landscape-icon" src="/MagicalMirai2026_MikuKaraoke/assets/mobile-landscape-mode-icon-CbjDZqzF.png" alt="" />
+      </p>
 
       <div id="song-grid">
         <button class="song-button" data-song-id="kotaete">こたえて</button>
@@ -40,6 +42,34 @@
       <div class="modal-box">
         <h2>How to Play</h2>
         <p> Press the corresponding arrow buttons ⬆️ ⬇️ ⬅️ ➡️ to the beat of the music, and sing the karaoke together with Hatsune Miku!</p>
+
+        <!-- ── Static illustration: frozen mock-up of one lyric row + cue
+             bar, purely to show the mechanic visually. No JS touches this —
+             positions are hardcoded percentages, not computed. -->
+        <div class="htp-illustration">
+          <div class="htp-phrase-row">
+            <span class="htp-char htp-char-colored" style="left: 8%">新</span>
+            <span class="htp-char htp-char-dim"     style="left: 58%">し</span>
+          </div>
+
+          <div class="htp-bar-wrap">
+            <div class="htp-bar-track">
+              <div class="htp-bar-inner">
+                <span class="htp-cue htp-cue-rating" style="left: 15%">Perfect</span>
+                <div class="htp-playhead" style="left: 60%"></div>
+                <div class="htp-cue" style="left: 70%">
+                  <img class="htp-cue-arrow-img" src="/MagicalMirai2026_MikuKaraoke/assets/arrow_left-BLon7lPm.png" alt="←" />
+                </div>
+              </div>
+            </div>
+
+            <div class="htp-hint" style="left: 70%">
+              <span class="htp-hint-arrow">↑</span>
+              <span class="htp-hint-text">Hit the left arrow key when the playhead is on the arrow!</span>
+            </div>
+          </div>
+        </div>
+
         <button id="btn-how-to-play-back" class="modal-back-button">Back</button>
       </div>
     </div>
