@@ -38,7 +38,7 @@ Chunk 8 issues:
 - Singing animation not entirely in sync with vocal/instrumental sections. Current approach is based on if there is lyrics or not.
     x Quick hand drop between phrases
         -> Add hold time between phrases
-    - No singing when there is vocal audio but no lyrics (because e.g. repeat the ladt phrase)
+    - No singing when there is vocal audio but no lyrics (because e.g. repeat the last phrase)
         -> attempt to use getVocalAmplitude() but returns undefined.
 x Song stops abruptly as soon as the lyrics is finished but there is still instrumental part, due to current song end detection uses last phrase.
 -> onStop doesn't fire automatically so used endTime. endTime only stores the rendering/lyric timeline but not the end time of the song. Use !isPlaying not resulted in pause by user.
@@ -57,3 +57,5 @@ x After the song finishes, show a summary screen with
 x Main menu to select song + instructions, full screen button, hint to use horizontal mode.
 x Animation to input pad: "pressed" either when keyboard or touch/mouse clicked.
 - Loading screen before the song so player does not eagerly press play button and cause misses in the first row.
+- back button in how to play module
+- graphical illustration of how to play

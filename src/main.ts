@@ -389,16 +389,6 @@ player.addListener({
   },
 
   // Show the end screen when the song stops.
-  //
-  // Secondary/defensive trigger only — CONFIRMED via live testing that
-  // onStop does NOT fire on natural end-of-song playback in this SDK
-  // version (a console.log placed here never printed during a full
-  // playthrough). The primary end-of-song detection is now the
-  // position >= player.video.endTime check in tick(). This handler is kept
-  // in case a future change adds an explicit player.requestStop() call
-  // (e.g. a "skip song" button), which onStop may still correctly cover —
-  // that path has not been tested. Guarded by the same endScreenShown flag
-  // so it can never double-trigger the end screen alongside the tick() path.
   onStop() {
     if (endScreenShown) return;
     endScreenShown = true;
@@ -420,6 +410,7 @@ btnPlay.addEventListener("click", () => {
     userInitiatedPause = true;
     player.requestPause();
   } else {
+    userInitiatedPause = false;
     player.requestPlay();
   }
 });
@@ -675,7 +666,6 @@ function tick(): void {
     return;
   }
 
-  userInitiatedPause = false;
   prevIsPlaying = isPlaying;
 
   if (endScreenShown) return;
