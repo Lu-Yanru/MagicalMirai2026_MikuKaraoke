@@ -564,8 +564,8 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
-  padding: 1rem;
+  gap: clamp(0.5rem, 2vmin, 2rem);
+  padding: clamp(0.5rem, 2vmin, 1rem);
   text-align: center;
   overflow-y: auto;
 }
@@ -579,13 +579,13 @@ body {
 }
 
 #title-image {
-  max-width: 80vw;
-  max-height: 25vh;
+  max-width: min(80vw, 600px);
+  max-height: clamp(15vh, 30vh, 38vh);
   object-fit: contain;
 }
 
 #landscape-hint {
-  font-size: 0.85rem;
+  font-size: clamp(0.85rem, 1.4vmin, 1.15rem);
   opacity: 0.75;
   max-width: 80vw;
 }
@@ -601,13 +601,13 @@ body {
 #song-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(120px, 1fr));
-  gap: 0.75rem;
-  width: min(90vw, 400px);
+  gap: clamp(0.75rem, 1.4vmin, 1.5rem);
+  width: min(90vw, clamp(400px, 60vmin, 880px));
 }
 
 .song-button {
-  padding: 0.9rem 0.5rem;
-  font-size: 1rem;
+  padding: clamp(0.6rem, 1.6vmin, 1.4rem) clamp(0.5rem, 1.2vmin, 1rem);
+  font-size: clamp(1rem, 1.8vmin, 1.4rem);
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 8px;
