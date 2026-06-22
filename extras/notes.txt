@@ -44,7 +44,8 @@ x Song stops abruptly as soon as the lyrics is finished but there is still instr
 -> onStop doesn't fire automatically so used endTime. endTime only stores the rendering/lyric timeline but not the end time of the song. Use !isPlaying not resulted in pause by user.
 x Main menu and play again on end screen plays the song and shows the lyrics but not reset the play mechanics. Cannot press buttons and the playhead doesn't move.
 -> reset render loop state at song start.
-- At the beginning of the song, the playhead starts moving early so the first phrase row always misses. Happens when start playing before everything is loaded.
+x At the beginning of the song, the playhead starts moving early so the first phrase row always misses. Happens when start playing before everything is loaded.
+-> Arm cues not immediately onPlay but in tick() after the cooldown frames settled.
 
 Additional features:
 x After the song finishes, show a summary screen with

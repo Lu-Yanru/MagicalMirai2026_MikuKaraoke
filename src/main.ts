@@ -159,6 +159,15 @@ const POSITION_COOLDOWN_FRAMES = 25; // ~133ms at 60 fps — imperceptible to th
 // does not visually jump on play/resume.
 let lastRenderedPosition = 0;
 
+// Set by onPlay() whenever playback (re)starts (fresh load OR resume from
+// pause). Consumed by tick() once positionCooldownFrames has fully elapsed —
+// only then is `position` trustworthy enough to compute correct miss-timeout
+// deadlines. Arming directly inside onPlay() used wall-clock setTimeout
+// delays against a position that hadn't started advancing yet, causing the
+// first phrase's cues to resolve as Miss before the real (delayed-start)
+// playhead ever reached them.
+let pendingArmOnResume = false;
+
 // Blink state for the next phrase's waiting playhead.
 // Reset to 0 whenever a new phrase becomes "next".
 let nextBlinkIndex = 0;
@@ -287,6 +296,7 @@ player.addListener({
     isSeeking = false;
     activePreBlinkIndex = 0;
     activePreBlinkVisible = false;
+    pendingArmOnResume = false;
 
     // Build the full cue schedule (one PhraseRow per IPhrase).
     phraseRows = buildSchedule(player);
@@ -373,9 +383,10 @@ player.addListener({
   // Re-arm miss timeouts when playback resumes. armCues skips already-resolved
   // cues so replaying a partial phrase only arms what hasn't been hit yet.
   onPlay() {
-  if (phraseRows.length > 0) {
-    armCues(phraseRows[activeIndex], player.timer.position, (r) => scoreManager.applyRating(r));
-  }
+    // Don't arm here — the position isn't stable yet this soon after
+    // requestPlay(). Defer to tick(), which arms once positionCooldownFrames
+    // confirms the audio clock has actually settled.
+    pendingArmOnResume = true;
     btnPlayImg.src = pauseIcon;   // button now shows "pause" while playing
   },
 
@@ -680,6 +691,13 @@ function tick(): void {
   } else {
     position = rawPosition;
     lastRenderedPosition = rawPosition;
+  }
+
+  // Arm miss-timeouts for the active phrase once the position has fully
+  // stabilized since the most recent play/resume.
+  if (pendingArmOnResume && positionCooldownFrames === 0 && phraseRows.length > 0) {
+    pendingArmOnResume = false;
+    armCues(phraseRows[activeIndex], position, (r) => scoreManager.applyRating(r));
   }
 
   // ── Phrase advance ────────────────────────────────────────────────────────
