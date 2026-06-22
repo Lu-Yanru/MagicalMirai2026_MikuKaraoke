@@ -58,5 +58,5 @@ x After the song finishes, show a summary screen with
 x Main menu to select song + instructions, full screen button, hint to use horizontal mode.
 x Animation to input pad: "pressed" either when keyboard or touch/mouse clicked.
 - Loading screen before the song so player does not eagerly press play button and cause misses in the first row.
-- back button in how to play module
-- graphical illustration of how to play
+x back button in how to play module
+x graphical illustration of how to play
