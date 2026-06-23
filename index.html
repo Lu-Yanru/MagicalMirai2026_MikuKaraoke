@@ -20,14 +20,16 @@
          toggling their visibility, so no existing markup needs to change. -->
     <div id="screen-start" class="screen-overlay">
       <img id="title-image" src="/src/assets/title.png" alt="Miku Karaoke" />
-      <p id="landscape-hint">
-        For the best experience on mobile, rotate your phone to landscape mode
-        <img id="landscape-icon" src="/src/assets/ui/mobile-landscape-mode-icon.png" alt="" />
-      </p>
-      <p id="fullscreen-hint">
-        and toggle full screen
-        <button id="btn-fullscreen-start" class="fullscreen-btn fullscreen-btn-inline" aria-label="Toggle fullscreen">⛶</button>
-      </p>
+      <div id="hint-group">
+        <p id="landscape-hint">
+          For the best experience on mobile, rotate your phone to landscape mode
+          <img id="landscape-icon" src="/src/assets/ui/mobile-landscape-mode-icon.png" alt="" />
+        </p>
+        <p id="fullscreen-hint">
+          and toggle full screen here:
+          <button id="btn-fullscreen-start" class="fullscreen-btn fullscreen-btn-inline" aria-label="Toggle fullscreen">⛶</button>
+        </p>
+      </div>
 
       <div id="song-grid">
         <button class="song-button" data-song-id="kotaete">こたえて</button>

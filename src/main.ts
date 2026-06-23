@@ -460,9 +460,11 @@ btnPlay.addEventListener("click", () => {
 // both identically instead of duplicating the handler.
 const fullscreenButtons =
   document.querySelectorAll<HTMLButtonElement>(".fullscreen-btn");
+const fullscreenHint = document.getElementById("fullscreen-hint") as HTMLElement;
 
 if (!document.documentElement.requestFullscreen) {
   fullscreenButtons.forEach((btn) => btn.classList.add("unsupported"));
+  fullscreenHint.classList.add("unsupported");
 } else {
   fullscreenButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
