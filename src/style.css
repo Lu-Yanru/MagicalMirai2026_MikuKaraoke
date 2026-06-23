@@ -35,9 +35,9 @@ body {
 /* ─── HUD (8vh) ──────────────────────────────────────────────────────────────
    Top bar: song title left, stats centre-right, play button far right.        */
 #hud {
-  flex: 8 0 0;   /* same 8 / 72 / 20 proportions as before, but now sized
-                    against body's real measured height, not a vh/dvh unit */
-  min-height: 0;
+  height: var(--hud-height);
+  flex: 0 0 auto;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -103,8 +103,8 @@ body {
    Height is 72vh = 100vh − 8vh (hud) − 20vh (input-pad). flex-shrink: 0
    prevents the stage from collapsing if the flex container runs short.        */
 #stage {
-  flex: 72 0 0;
-  min-height: 0;
+  height: var(--stage-height);
+  flex: 0 0 auto;
   position: relative;
   overflow: hidden;
   background-color: #111118;
@@ -314,8 +314,8 @@ body {
    touch-action: manipulation eliminates the 300ms tap delay on mobile.
    -webkit-tap-highlight-color: transparent removes the iOS grey flash.        */
 #input-pad {
-  flex: 20 0 0;
-  min-height: 0;
+  height: var(--input-height);
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -24,7 +24,17 @@ import type { Timer } from "textalive-app-api";
 // a CSS variable that the layout uses instead of vh/dvh.
 function updateAppHeight(): void {
   const height = window.visualViewport?.height ?? window.innerHeight;
-  document.documentElement.style.setProperty("--app-height", `${height}px`);
+  const root = document.documentElement.style;
+  root.setProperty("--app-height", `${height}px`);
+  // Explicit pixel heights for the three game-screen sections, computed
+  // directly from the measured height — not flex-grow distribution. A flex
+  // item's content can still force it past a flex-basis/flex-grow
+  // allocation (default min-height: auto), which is what caused the
+  // upward shift once real lyric/singer content was populated. An explicit
+  // height with flex-grow/shrink: 0 has no such override path.
+  root.setProperty("--hud-height", `${height * 0.08}px`);
+  root.setProperty("--stage-height", `${height * 0.72}px`);
+  root.setProperty("--input-height", `${height * 0.20}px`);
 }
 
 updateAppHeight();

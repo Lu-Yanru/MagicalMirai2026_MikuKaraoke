@@ -4,7 +4,7 @@ x Do not schedule cue at the start of a phrase row because do not have time to r
 x When there is no intro and a cue is scheduled close to the start of the song, hard to react to it. (Only for トリツクロジー -> Skip because it's a Rin song.)
 x Some phrases are too fast and there isn't enough time to see the cues.
 x Do not just schedule based on character but based on beat, otherwise always at full beat and quite boring.
--> Rework scheduler algo to be beat-based and not char-based. Add minimum spacing between cues. See game-design.md.
+    -> Rework scheduler algo to be beat-based and not char-based. Add minimum spacing between cues. See game-design.md.
 - Add different types of cues, like holds and rapid presses.
 
 Chunk 4 issues:
@@ -13,6 +13,10 @@ x Singer pic too big, not enough part of body is shown. Maybe only occupy the up
 x Lyrics area can have less empty space around and betwenn the two rows. Also move closer to the bottom (The arrow buttons). 
 x Some browsers (e.g. Chrome) has tabs on top, need to scroll to show input pad in full.
     -> add a fullscreen button
+        - Not supported in ios
+            -> Measure actual window display size and adjust body size to that
+                - Displays correctly initially but everything shifts upwards as soon as the song is loaded, both on mobile and desktop.
+                    -> Remove flex auto in css and assign fixed height calculated from viewport height.
 
 Chunk 5 issues:
 x Playhead jump when play/resume.
@@ -32,7 +36,7 @@ x Shrink the font size of all lyrics phrases when the window is too small so tha
 
 Chunk 7 issues:
 x When keep a key hold, the cue gets resolved not as a miss.
--> Browsers auto-repeat keydown while a key is held, one of those repeats lands inside the cue's hit window, resolving it as a hit instead of a miss. Ignore repeated keydown events from a held key
+    -> Browsers auto-repeat keydown while a key is held, one of those repeats lands inside the cue's hit window, resolving it as a hit instead of a miss. Ignore repeated keydown events from a held key
 
 Chunk 8 issues:
 - Singing animation not entirely in sync with vocal/instrumental sections. Current approach is based on if there is lyrics or not.
@@ -41,11 +45,13 @@ Chunk 8 issues:
     - No singing when there is vocal audio but no lyrics (because e.g. repeat the last phrase)
         -> attempt to use getVocalAmplitude() but returns undefined.
 x Song stops abruptly as soon as the lyrics is finished but there is still instrumental part, due to current song end detection uses last phrase.
--> onStop doesn't fire automatically so used endTime. endTime only stores the rendering/lyric timeline but not the end time of the song. Use !isPlaying not resulted in pause by user.
+    -> onStop doesn't fire automatically so used endTime. endTime only stores the rendering/lyric timeline but not the end time of the song. Use !isPlaying not resulted in pause by user.
 x Main menu and play again on end screen plays the song and shows the lyrics but not reset the play mechanics. Cannot press buttons and the playhead doesn't move.
--> reset render loop state at song start.
+    -> reset render loop state at song start.
 x At the beginning of the song, the playhead starts moving early so the first phrase row always misses. Happens when start playing before everything is loaded.
--> Arm cues not immediately onPlay but in tick() after the cooldown frames settled.
+    -> Arm cues not immediately onPlay but in tick() after the cooldown frames settled.
+- In safari, autoplay the song glitches and goes immediately to the last phrase. On reload, no more autoplay and manually press the play button fixes the issue.
+- No autoplay on ios
 
 Additional features:
 x After the song finishes, show a summary screen with
