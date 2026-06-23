@@ -17,7 +17,7 @@ body {
   margin: 0;
   background-color: #0a0a0f;
   color: #ffffff;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   font-family: sans-serif;
   display: flex;
@@ -27,7 +27,7 @@ body {
 /* ─── HUD (8vh) ──────────────────────────────────────────────────────────────
    Top bar: song title left, stats centre-right, play button far right.        */
 #hud {
-  height: 8vh;
+  height: 8dvh;
   flex-shrink: 0;   /* never shrink below 8vh even if content overflows */
   display: flex;
   align-items: center;
@@ -94,7 +94,7 @@ body {
    Height is 72vh = 100vh − 8vh (hud) − 20vh (input-pad). flex-shrink: 0
    prevents the stage from collapsing if the flex container runs short.        */
 #stage {
-  height: 72vh;
+  height: 72dvh;
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
@@ -224,7 +224,7 @@ body {
   transform: translateX(-50%);
   /* font-size matches .phrase-text-wrap height so characters fill their row.
      Must be kept in sync with the clamp on .phrase-text-wrap height above.  */
-  font-size: clamp(1rem, 3vh, 1.6rem);
+  font-size: clamp(1rem, min(3vh, 5.5vw), 1.6rem);
   user-select: none;
 }
 
@@ -232,7 +232,7 @@ body {
   position: absolute;
   color: #1d9e75;
   transform: translateX(-50%);
-  font-size: clamp(1rem, 3vh, 1.6rem);
+  font-size: clamp(1rem, min(3vh, 5.5vw), 1.6rem);
   user-select: none;
 }
 
@@ -305,7 +305,7 @@ body {
    touch-action: manipulation eliminates the 300ms tap delay on mobile.
    -webkit-tap-highlight-color: transparent removes the iOS grey flash.        */
 #input-pad {
-  height: 20vh;
+  height: 20dvh;
   flex-shrink: 0;
   display: flex;
   align-items: center;

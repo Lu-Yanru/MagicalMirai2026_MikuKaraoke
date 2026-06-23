@@ -8,7 +8,7 @@ x Do not just schedule based on character but based on beat, otherwise always at
 - Add different types of cues, like holds and rapid presses.
 
 Chunk 4 issues:
-- Play button too small. Hard to use on mobile.
+x Play button too small. Hard to use on mobile.
 x Singer pic too big, not enough part of body is shown. Maybe only occupy the upper 60% and center of the "stage".
 x Lyrics area can have less empty space around and betwenn the two rows. Also move closer to the bottom (The arrow buttons). 
 x Some browsers (e.g. Chrome) has tabs on top, need to scroll to show input pad in full.
