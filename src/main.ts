@@ -13,6 +13,25 @@
 import { Player, type IPlayerApp, type IVideo } from "textalive-app-api";
 import type { Timer } from "textalive-app-api";
 
+// ─── Viewport height fix (iOS) ────────────────────────────────────────────────
+//
+// 100dvh is not fully reliable on iOS — there's a confirmed WebKit bug
+// (https://bugs.webkit.org/show_bug.cgi?id=261185) where dvh/svh don't
+// correctly reflect the real visible height when the Safari tab bar's size
+// varies (e.g. landscape with multiple tabs open, as observed). We instead
+// read window.visualViewport.height directly — it tracks the actual visible
+// pixel height continuously and isn't subject to that bug — and write it to
+// a CSS variable that the layout uses instead of vh/dvh.
+function updateAppHeight(): void {
+  const height = window.visualViewport?.height ?? window.innerHeight;
+  document.documentElement.style.setProperty("--app-height", `${height}px`);
+}
+
+updateAppHeight();
+window.visualViewport?.addEventListener("resize", updateAppHeight);
+window.addEventListener("resize", updateAppHeight);
+window.addEventListener("orientationchange", updateAppHeight);
+
 import { buildSchedule } from "./game/scheduler";
 import { ScoreManager } from "./game/scoring";
 import { getSingerState } from "./game/singer";

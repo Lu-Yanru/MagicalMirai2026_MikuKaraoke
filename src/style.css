@@ -13,11 +13,19 @@
    (#hud / #stage / #input-pad) share 100vh by normal block flow — no
    absolute positioning between siblings, no overlap possible at any
    screen size.                                                                 */
+:root {
+  /* Pre-JS fallback only — main.ts overwrites this immediately on load with
+     the real window.visualViewport height. dvh is a reasonable fallback for
+     the brief moment before that script runs, or in case visualViewport is
+     ever unavailable. */
+  --app-height: 100dvh;
+}
+
 body {
   margin: 0;
   background-color: #0a0a0f;
   color: #ffffff;
-  height: 100dvh;
+  height: var(--app-height);
   overflow: hidden;
   font-family: sans-serif;
   display: flex;
@@ -27,8 +35,9 @@ body {
 /* ─── HUD (8vh) ──────────────────────────────────────────────────────────────
    Top bar: song title left, stats centre-right, play button far right.        */
 #hud {
-  height: 8dvh;
-  flex-shrink: 0;   /* never shrink below 8vh even if content overflows */
+  flex: 8 0 0;   /* same 8 / 72 / 20 proportions as before, but now sized
+                    against body's real measured height, not a vh/dvh unit */
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -94,8 +103,8 @@ body {
    Height is 72vh = 100vh − 8vh (hud) − 20vh (input-pad). flex-shrink: 0
    prevents the stage from collapsing if the flex container runs short.        */
 #stage {
-  height: 72dvh;
-  flex-shrink: 0;
+  flex: 72 0 0;
+  min-height: 0;
   position: relative;
   overflow: hidden;
   background-color: #111118;
@@ -305,8 +314,8 @@ body {
    touch-action: manipulation eliminates the 300ms tap delay on mobile.
    -webkit-tap-highlight-color: transparent removes the iOS grey flash.        */
 #input-pad {
-  height: 20dvh;
-  flex-shrink: 0;
+  flex: 20 0 0;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
