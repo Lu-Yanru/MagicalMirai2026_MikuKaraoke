@@ -260,6 +260,13 @@ const player = new Player({
 function loadSong(song: SongDescriptor): void {
   setCurrentSong(song);
   songTitleEl.textContent = song.title;
+  // Re-measure the real viewport height right at the start-screen -> game
+  // transition. Tapping a song button can leave iOS Safari's toolbar/tab
+  // strip mid-resize-animation; relying solely on the 'resize' event risks
+  // latching --app-height onto a transient, not-yet-settled value if no
+  // further resize event fires once the animation completes.
+  updateAppHeight();
+  setTimeout(updateAppHeight, 300); // catch a still-settling toolbar animation
   // Only stop a *previous* song — calling requestStop() before any song has
   // ever finished loading (i.e. the very first call, on a fresh page) throws,
   // because the playback engine doesn't exist yet at that point.
@@ -492,6 +499,10 @@ btnMainMenu.addEventListener("click", () => {
     player.requestStop();
   }
   showStartScreen();
+  // Same reasoning as loadSong() — returning to the start screen is also a
+  // tap-driven UI transition that can leave the toolbar mid-resize.
+  updateAppHeight();
+  setTimeout(updateAppHeight, 300);
 });
 
 // ─── Keyboard input ───────────────────────────────────────────────────────────
