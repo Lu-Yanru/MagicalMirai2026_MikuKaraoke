@@ -500,9 +500,11 @@ btnPlay.addEventListener("click", () => {
   if (endScreenShown) return;
   if (player.isPlaying) {
     userInitiatedPause = true;
+    prevIsPlaying = true;
     player.requestPause();
   } else {
     userInitiatedPause = false;
+    prevIsPlaying = false;
     player.requestPlay();
   }
 });
@@ -833,7 +835,8 @@ function tick(): void {
   }
 
   // ── Natural end-of-song detection ─────────────────────────────────────────
-  if (!endScreenShown && prevIsPlaying && !isPlaying && !userInitiatedPause) {
+  const nearSongEnd = lastRenderedPosition >= player.video.endTime - 1000;
+  if (!endScreenShown && prevIsPlaying && !isPlaying && !userInitiatedPause && nearSongEnd) {
     endScreenShown = true;
     showEndScreen(scoreManager.state);
     prevIsPlaying = isPlaying;

@@ -57,8 +57,10 @@ x At the beginning of the song, the playhead starts moving early so the first ph
 x In safari, autoplay the song glitches and goes immediately to the last phrase. On reload, no more autoplay and manually press the play button fixes the issue.
     -> Add a glitch guard that if the playhead jumps too much, consider it a glitch, stops and restart the song.
 - No autoplay on ios
-- Sometimes retarting a song shows the end screen immediately after the song is reloaded.
-- Sometimes after switching back to the tab the song stops and end screen shows immediately.
+x Sometimes retarting a song shows the end screen immediately after the song is reloaded.
+    -> Set a guard that the end screen should only show close to the end of the song.
+x Sometimes after switching back to the tab the song stops and end screen shows immediately.
+    -> Pause explicitly when tab is inactive.
 
 Additional features:
 x After the song finishes, show a summary screen with
