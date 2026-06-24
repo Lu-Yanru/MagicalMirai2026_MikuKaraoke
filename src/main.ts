@@ -324,6 +324,7 @@ function loadSong(song: SongDescriptor): void {
     userInitiatedPause = true;
     prevIsPlaying = false;
     player.requestStop();
+    lastRenderedPosition = 0;
   }
   player.createFromSongUrl(song.songUrl, { video: song.video });
 }
