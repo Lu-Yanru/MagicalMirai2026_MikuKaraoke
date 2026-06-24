@@ -321,6 +321,8 @@ function loadSong(song: SongDescriptor): void {
   // ever finished loading (i.e. the very first call, on a fresh page) throws,
   // because the playback engine doesn't exist yet at that point.
   if (hasPlayableSong) {
+    userInitiatedPause = true;
+    prevIsPlaying = false;
     player.requestStop();
   }
   player.createFromSongUrl(song.songUrl, { video: song.video });
@@ -564,6 +566,8 @@ btnPlayAgain.addEventListener("click", () => {
 btnMainMenu.addEventListener("click", () => {
   screenEnd.classList.add("hidden");
   if (hasPlayableSong) {
+    userInitiatedPause = true;
+    prevIsPlaying = false;
     player.requestStop();
   }
   showStartScreen();
@@ -1020,6 +1024,21 @@ function tick(): void {
     }
   }
 }
+
+// ─── Tab visibility ───────────────────────────────────────────────────────────
+//
+// Implements "pause while the tab is inactive" deliberately, rather than
+// relying on whatever a backgrounded tab's own browser throttling happens to
+// do to audio/rAF — that produced the exact same ambiguous isPlaying-false
+// transition tick() uses to detect the song genuinely ending, with no
+// reliable way to tell the two apart after the fact.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && hasPlayableSong && player.isPlaying) {
+    userInitiatedPause = true;
+    prevIsPlaying = false; // same synchronous-with-the-stop pattern as above
+    player.requestPause();
+  }
+});
 
 // Kick off the render loop. Self-scheduling via requestAnimationFrame;
 // runs for the lifetime of the page.
