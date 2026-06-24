@@ -41,6 +41,24 @@ updateAppHeight();
 window.visualViewport?.addEventListener("resize", updateAppHeight);
 window.addEventListener("resize", updateAppHeight);
 window.addEventListener("orientationchange", updateAppHeight);
+// Suppress the console-level "Uncaught (in promise) AbortError: ... was
+// interrupted by a call to pause()" noise. This comes from inside the SDK's
+// own internal play()/pause() handling when autoplay is blocked/interrupted
+// by the browser (see onTimerReady's comment) — it's expected in that
+// scenario and already handled by tick()'s glitch guard; this only silences
+// the otherwise-unhandled rejection so it doesn't read as a real crash.
+// Narrowed to the specific play()/pause() interruption pattern (see
+// https://developer.chrome.com/blog/play-request-was-interrupted)
+window.addEventListener("unhandledrejection", (e) => {
+  if (
+    e.reason instanceof DOMException &&
+    e.reason.name === "AbortError" &&
+    /play\(\) request was interrupted/.test(e.reason.message)
+  ) {
+    e.preventDefault();
+  }
+});
+
 
 import { buildSchedule } from "./game/scheduler";
 import { ScoreManager } from "./game/scoring";
@@ -196,6 +214,14 @@ let lastRenderedPosition = 0;
 // first phrase's cues to resolve as Miss before the real (delayed-start)
 // playhead ever reached them.
 let pendingArmOnResume = false;
+
+// Maximum plausible position advance between two consecutive animation
+// frames during real playback. Generous enough to never false-positive on
+// frame jitter or background-tab throttling, but far smaller than jumping
+// to a much later point in the song. A jump beyond this is treated as a
+// glitched/corrupted Timer reading (e.g. an autoplay attempt blocked by
+// browser policy), not real playback progress.
+const MAX_SANE_POSITION_JUMP_MS = 3000;
 
 // Blink state for the next phrase's waiting playhead.
 // Reset to 0 whenever a new phrase becomes "next".
@@ -759,6 +785,14 @@ function tick(): void {
   const rawPosition = player.timer.position;
   let position: number;
 
+  // ── Glitch guard: reject an impossible one-frame jump ─────────────────────
+  // Must run before any other use of rawPosition this frame — see
+  // recoverFromPlaybackGlitch()'s header comment for why this exists.
+  if (isPlaying && rawPosition - lastRenderedPosition > MAX_SANE_POSITION_JUMP_MS) {
+    recoverFromPlaybackGlitch();
+    return;
+  }
+
   if (positionCooldownFrames > 0) {
     positionCooldownFrames--;
     position = lastRenderedPosition; // hold last stable value
@@ -937,3 +971,56 @@ initStartScreen(SONGS, (song) => {
   hideStartScreen();
   loadSong(song);
 });
+
+// ─── recoverFromPlaybackGlitch ────────────────────────────────────────────────
+//
+// Called from tick() when an impossible position jump is detected (see
+// MAX_SANE_POSITION_JUMP_MS). Forces playback back to a clean, known-good
+// state — same render-loop/phrase-row reset as a fresh song load — so the
+// existing (already-working) manual Play button can restart the song
+// correctly. Deliberately does NOT call player.requestPlay() again:
+// the underlying cause is likely a browser autoplay block, and retrying
+// automatically would just glitch again.
+function recoverFromPlaybackGlitch(): void {
+  console.warn("Playback position glitch detected — resetting to a clean, replayable state.");
+
+  if (hasPlayableSong) {
+    player.requestStop(); // pauses AND rewinds the underlying timer to 0
+  }
+
+  lastRenderedPosition = 0;
+  positionCooldownFrames = 0;
+  prevIsPlaying = false;
+  userInitiatedPause = false;
+  isSeeking = false;
+  pendingArmOnResume = false;
+  activePreBlinkIndex = 0;
+  activePreBlinkVisible = false;
+  nextBlinkIndex = 0;
+  blinkVisible = false;
+
+  activeIndex = 0;
+  nextIndex = 1;
+  activeIsTop = true;
+
+  if (phraseRows.length > 0) {
+    activatePhrase(phraseRows[activeIndex], phraseTopSlot, phraseBottomSlot, true, true);
+    if (phraseRows[activeIndex].coloredLayer) {
+      phraseRows[activeIndex].coloredLayer!.style.clipPath = "inset(0 100% 0 0)";
+    }
+    if (phraseRows[activeIndex].playheadElement) {
+      phraseRows[activeIndex].playheadElement!.style.left = "calc(-0.8rem - 8px)";
+      phraseRows[activeIndex].playheadElement!.style.opacity = "0";
+    }
+  }
+  if (phraseRows.length > 1) {
+    activatePhrase(phraseRows[nextIndex], phraseTopSlot, phraseBottomSlot, false, false);
+  }
+
+  currentSingerState = "idle";
+  lyricWasActive = false;
+  applySingerExpression("idle", false);
+  setSingerLyricState(false);
+
+  btnPlayImg.src = playIcon;
+}

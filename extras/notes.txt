@@ -15,18 +15,18 @@ x Some browsers (e.g. Chrome) has tabs on top, need to scroll to show input pad 
     -> add a fullscreen button
         - Not supported in ios
             -> Measure actual window display size and adjust body size to that
-                - Displays correctly initially but everything shifts upwards as soon as the song is loaded, both on mobile and desktop.
+                x Displays correctly initially but everything shifts upwards as soon as the song is loaded, both on mobile and desktop.
                     -> Remove flex auto in css and assign fixed height calculated from viewport height.
 
 Chunk 5 issues:
 x Playhead jump when play/resume.
     -> Introduce cooldown frames after play/resume where the playhead is frozen until the player.time.position is in sync again.
 x Bar track fills up the whole window length while the phrase row doesn't, so the phrase row fills up faster than it should because the playhead moves more.
-    - Add spaces between the characters so the phrase fills the whole width of the row. This approach just blindly adds the same amount of spaces between each character without considering the beats and the syllables of each character. As a result, the character currently being colored may not be the character currently being sung and it looks kinda weird. 
-        - Possible solution: add spaces depending on the beat. -> Dynamically place characters based on percentage of the beat in the phrase.
-            - Some characters a too close to each other -> Post-process the characters and adjust so they don't overlap. Trade-off is the timing is not entirely accurate anymore.
+    -> Add spaces between the characters so the phrase fills the whole width of the row. This approach just blindly adds the same amount of spaces between each character without considering the beats and the syllables of each character. As a result, the character currently being colored may not be the character currently being sung and it looks kinda weird. 
+        x Possible solution: add spaces depending on the beat. -> Dynamically place characters based on percentage of the beat in the phrase.
+            x Some characters a too close to each other -> Post-process the characters and adjust so they don't overlap. Trade-off is the timing is not entirely accurate anymore.
             - Playhead and color fill no longer in sync?
-            - English words are separated by spaces too. -> In post-processing collision resolution, first find english words and resolve as a group.
+            x English words are separated by spaces too. -> In post-processing collision resolution, first find english words and resolve as a group.
     - Just accept it because the playhead has to move at a constant speed? Yakuza Karaoke is kinda like this.
 x When cue at the start of the phrase, partially hang out of the bar track.
     -> Add a inner bar track that is shorter than the visual bar track and place cues and lyrics along that.
