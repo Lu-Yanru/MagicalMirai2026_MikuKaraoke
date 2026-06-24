@@ -991,7 +991,7 @@ function recoverFromPlaybackGlitch(): void {
   lastRenderedPosition = 0;
   positionCooldownFrames = 0;
   prevIsPlaying = false;
-  userInitiatedPause = false;
+  userInitiatedPause = true;
   isSeeking = false;
   pendingArmOnResume = false;
   activePreBlinkIndex = 0;
