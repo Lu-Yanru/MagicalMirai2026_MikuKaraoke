@@ -65,7 +65,9 @@ import { ScoreManager } from "./game/scoring";
 import { getSingerState } from "./game/singer";
 import { SONGS, getCurrentSong, setCurrentSong, type SongDescriptor } from "./game/song";
 import { computeEndScreenData } from "./game/end-screen";
+
 import { initStartScreen, showStartScreen, hideStartScreen } from "./ui/start-screen";
+import { showLoadingScreen, hideLoadingScreen } from "./ui/loading-screen";
 import {
   initSingerAnimation,
   updateSingerAnimation,
@@ -80,6 +82,7 @@ import {
 import { armCues, disarmCues } from "./ui/arrows";
 import { initLyrics, activatePhrase, updateLyrics } from "./ui/lyrics";
 import { RATING_COLORS } from "./ui/rating";
+
 import type { PhraseRow, Direction, ScoreState, RatingType, SingerState } from "./types";
 
 import playIcon from "/src/assets/ui/play.png";
@@ -185,6 +188,15 @@ let totalCueCount = 0;
 // updates during a seek to avoid showing a half-filled clip-path on a
 // position that is about to change again.
 let isSeeking = false;
+
+// True from the moment a song load begins (song select, "Play again") until
+// onTimerReady confirms the playback engine is ready. While true: the loading
+// overlay is shown, the play button and input-pad buttons are disabled, and
+// the keyboard/touch input handlers ignore all input. This closes the gap
+// where pressing Play before onTimerReady would call player.requestPlay()
+// too early (documented as unsafe — see Key Learnings), and the gap where
+// arrow keys could resolve cues before the song has actually started.
+let isLoading = false;
 
 // ─── Render loop state ────────────────────────────────────────────────────────
 
@@ -438,6 +450,8 @@ player.addListener({
     if (!isManaged) {
       player.requestPlay();
     }
+    // No-op if startLoading() was never called for this load (managed mode).
+    finishLoading();
   },
 
   // Pause/resume lyric updates around seek operations.
@@ -480,6 +494,7 @@ player.addListener({
 
 // ─── Play button ──────────────────────────────────────────────────────────────
 btnPlay.addEventListener("click", () => {
+  if (isLoading) return;
   if (endScreenShown) return;
   if (player.isPlaying) {
     userInitiatedPause = true;
@@ -540,6 +555,7 @@ if (!document.documentElement.requestFullscreen) {
 
 // ─── Play again button (end screen) ──────────────────────────────────────────
 btnPlayAgain.addEventListener("click", () => {
+  startLoading();
   screenEnd.classList.add("hidden");
   loadSong(getCurrentSong());
 });
@@ -570,6 +586,7 @@ const KEY_TO_DIRECTION: Record<string, Direction> = {
 };
 
 document.addEventListener("keydown", (e) => {
+  if (isLoading) return;
   if (endScreenShown) return;
 
   const direction = KEY_TO_DIRECTION[e.key];
@@ -628,6 +645,7 @@ const DIRECTION_BUTTONS: Record<Direction, HTMLButtonElement> = {
 };
 
 function handlePadInput(target: EventTarget | null): void {
+  if (isLoading) return;
   if (endScreenShown) return;
 
   if (!(target instanceof HTMLElement)) return;
@@ -645,6 +663,31 @@ inputPad.addEventListener("touchstart", (e) => {
 inputPad.addEventListener("click", (e) => {
   handlePadInput(e.target);
 });
+
+// ─── Loading screen control ────────────────────────────────────────────────
+//
+// Disables the actual button elements (not just relying on the overlay's
+// z-index) so keyboard activation of a focused-but-covered button can't
+// slip through either. Function declarations (not const arrow fns) so they
+// can be referenced from the lifecycle listeners and the start-screen
+// callback regardless of textual order in this file.
+function startLoading(): void {
+  isLoading = true;
+  showLoadingScreen();
+  btnPlay.disabled = true;
+  for (const dir of Object.keys(DIRECTION_BUTTONS) as Direction[]) {
+    DIRECTION_BUTTONS[dir].disabled = true;
+  }
+}
+
+function finishLoading(): void {
+  isLoading = false;
+  hideLoadingScreen();
+  btnPlay.disabled = false;
+  for (const dir of Object.keys(DIRECTION_BUTTONS) as Direction[]) {
+    DIRECTION_BUTTONS[dir].disabled = false;
+  }
+}
 
 // ─── Singer expression rule ───────────────────────────────────────────────────
 //
@@ -984,6 +1027,7 @@ tick();
 
 // ─── Start screen wiring ──────────────────────────────────────────────────────
 initStartScreen(SONGS, (song) => {
+  startLoading();
   hideStartScreen();
   loadSong(song);
 });

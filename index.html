@@ -81,6 +81,17 @@
       </div>
     </div>
 
+    <!-- ── Loading screen ───────────────────────────────────────────────────
+         Shown for every song load triggered by the player (song select,
+         "Play again"). Sits above #screen-end (z-index 100) so it masks
+         BOTH the previous game's stale state and the end-screen results
+         until the new song's onTimerReady fires. Skipped entirely when
+         running inside the TextAlive editor (managed mode) — see main.ts. -->
+    <div id="screen-loading" class="screen-overlay hidden">
+      <div id="loading-spinner" aria-hidden="true"></div>
+      <p id="loading-text">Loading...</p>
+    </div>
+
     <!--
       Three siblings stack vertically to fill 100vh with no overlap possible:
         #hud       —  8vh — top bar

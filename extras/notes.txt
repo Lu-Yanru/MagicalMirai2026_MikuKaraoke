@@ -17,6 +17,10 @@ x Some browsers (e.g. Chrome) has tabs on top, need to scroll to show input pad 
             -> Measure actual window display size and adjust body size to that
                 x Displays correctly initially but everything shifts upwards as soon as the song is loaded, both on mobile and desktop.
                     -> Remove flex auto in css and assign fixed height calculated from viewport height.
+- Singer has black clothes that is hardly visible against the black background.
+    -> Easy fix: Use a lighter color as stage background
+    -> Add a spotlight effect on top of the singer.
+    -> Add background art, a stage?
 
 Chunk 5 issues:
 x Playhead jump when play/resume.
@@ -53,6 +57,8 @@ x At the beginning of the song, the playhead starts moving early so the first ph
 x In safari, autoplay the song glitches and goes immediately to the last phrase. On reload, no more autoplay and manually press the play button fixes the issue.
     -> Add a glitch guard that if the playhead jumps too much, consider it a glitch, stops and restart the song.
 - No autoplay on ios
+- Sometimes retarting a song shows the end screen immediately after the song is reloaded.
+- Sometimes after switching back to the tab the song stops and end screen shows immediately.
 
 Additional features:
 x After the song finishes, show a summary screen with
@@ -64,6 +70,6 @@ x After the song finishes, show a summary screen with
     - Option to replay song, go back to main menu
 x Main menu to select song + instructions, full screen button, hint to use horizontal mode.
 x Animation to input pad: "pressed" either when keyboard or touch/mouse clicked.
-- Loading screen before the song so player does not eagerly press play button and cause misses in the first row.
+x Loading screen before the song so player does not eagerly press play button and cause misses in the first row.
 x back button in how to play module
 x graphical illustration of how to play
