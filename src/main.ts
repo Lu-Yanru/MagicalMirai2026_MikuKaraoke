@@ -84,6 +84,8 @@ import type { PhraseRow, Direction, ScoreState, RatingType, SingerState } from "
 
 import playIcon from "/src/assets/ui/play.png";
 import pauseIcon from "/src/assets/ui/pause.png";
+import enterFullscreenIcon from "/src/assets/ui/full-screen-arrow-icon.png";
+import exitFullscreenIcon from "/src/assets/ui/small-screen-arrow-icon.png";
 
 import headHappyBig from "/src/assets/singer/head_happy_mouth_big.png";
 import headIdle from "/src/assets/singer/head_idle.png";
@@ -505,6 +507,16 @@ const fullscreenButtons =
   document.querySelectorAll<HTMLButtonElement>(".fullscreen-btn");
 const fullscreenHint = document.getElementById("fullscreen-hint") as HTMLElement;
 
+// One <img> per button (see index.html) — swapped together so both the HUD
+// and start-screen buttons always show the same icon for the current state.
+const fullscreenIcons =
+  document.querySelectorAll<HTMLImageElement>(".fullscreen-btn-icon");
+
+function updateFullscreenIcon(): void {
+  const icon = document.fullscreenElement ? exitFullscreenIcon : enterFullscreenIcon;
+  fullscreenIcons.forEach((img) => { img.src = icon; });
+}
+
 if (!document.documentElement.requestFullscreen) {
   fullscreenButtons.forEach((btn) => btn.classList.add("unsupported"));
   fullscreenHint.classList.add("unsupported");
@@ -520,6 +532,10 @@ if (!document.documentElement.requestFullscreen) {
       }
     });
   });
+  // Covers exiting fullscreen via the OS/browser's own UI (e.g. the Esc key
+  // or a system back-gesture), not just our own button — the icon needs to
+  // flip back in that case too, not only on a click we initiated ourselves.
+  document.addEventListener("fullscreenchange", updateFullscreenIcon);
 }
 
 // ─── Play again button (end screen) ──────────────────────────────────────────

@@ -50,7 +50,8 @@ x Main menu and play again on end screen plays the song and shows the lyrics but
     -> reset render loop state at song start.
 x At the beginning of the song, the playhead starts moving early so the first phrase row always misses. Happens when start playing before everything is loaded.
     -> Arm cues not immediately onPlay but in tick() after the cooldown frames settled.
-- In safari, autoplay the song glitches and goes immediately to the last phrase. On reload, no more autoplay and manually press the play button fixes the issue.
+x In safari, autoplay the song glitches and goes immediately to the last phrase. On reload, no more autoplay and manually press the play button fixes the issue.
+    -> Add a glitch guard that if the playhead jumps too much, consider it a glitch, stops and restart the song.
 - No autoplay on ios
 
 Additional features:

@@ -790,9 +790,15 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.3rem;
-  color: #ffffff;
-  line-height: 1;
+}
+
+.fullscreen-btn-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
 }
 
 .fullscreen-btn:hover  { background: rgba(255, 255, 255, 0.22); }
