@@ -9,8 +9,8 @@
     -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>Miku Karaoke — Magical Mirai 2026</title>
-    <script type="module" crossorigin src="/MagicalMirai2026_MikuKaraoke/assets/index-BedqLY4C.js"></script>
-    <link rel="stylesheet" crossorigin href="/MagicalMirai2026_MikuKaraoke/assets/index-Cet-aKNU.css">
+    <script type="module" crossorigin src="/MagicalMirai2026_MikuKaraoke/assets/index-DjmSkHl-.js"></script>
+    <link rel="stylesheet" crossorigin href="/MagicalMirai2026_MikuKaraoke/assets/index-CfWm8qdY.css">
   </head>
   <body>
 
@@ -80,6 +80,17 @@
 
         <button id="btn-how-to-play-back" class="modal-back-button">Back</button>
       </div>
+    </div>
+
+    <!-- ── Loading screen ───────────────────────────────────────────────────
+         Shown for every song load triggered by the player (song select,
+         "Play again"). Sits above #screen-end (z-index 100) so it masks
+         BOTH the previous game's stale state and the end-screen results
+         until the new song's onTimerReady fires. Skipped entirely when
+         running inside the TextAlive editor (managed mode) — see main.ts. -->
+    <div id="screen-loading" class="screen-overlay hidden">
+      <div id="loading-spinner" aria-hidden="true"></div>
+      <p id="loading-text">Loading...</p>
     </div>
 
     <!--
