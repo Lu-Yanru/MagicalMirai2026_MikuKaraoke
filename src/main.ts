@@ -324,7 +324,6 @@ function loadSong(song: SongDescriptor): void {
     userInitiatedPause = true;
     prevIsPlaying = false;
     player.requestStop();
-    lastRenderedPosition = 0;
   }
   player.createFromSongUrl(song.songUrl, { video: song.video });
 }
@@ -481,12 +480,12 @@ player.addListener({
   },
 
   // Show the end screen when the song stops.
-  onStop() {
-    if (endScreenShown) return;
-    endScreenShown = true;
-    player.requestPause();
-    showEndScreen(scoreManager.state);
-  },
+  // onStop() {
+  //   if (endScreenShown) return;
+  //   endScreenShown = true;
+  //   player.requestPause();
+  //   showEndScreen(scoreManager.state);
+  // },
 });
 
 player.addListener({

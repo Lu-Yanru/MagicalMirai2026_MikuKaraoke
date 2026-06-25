@@ -58,7 +58,7 @@ x In safari, autoplay the song glitches and goes immediately to the last phrase.
     -> Add a glitch guard that if the playhead jumps too much, consider it a glitch, stops and restart the song.
 - No autoplay on ios
 x Sometimes retarting a song shows the end screen immediately after the song is reloaded.
-    -> Set a guard that the end screen should only show close to the end of the song.
+    -> Set a guard that the end screen should only show close to the end of the song. Remove onStop() show end screen entirely and the ed detection in tick() becomes the only place to check if end screen should be shown.
 x Sometimes after switching back to the tab the song stops and end screen shows immediately.
     -> Pause explicitly when tab is inactive.
 
