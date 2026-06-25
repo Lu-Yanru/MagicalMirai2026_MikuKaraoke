@@ -17,10 +17,10 @@ x Some browsers (e.g. Chrome) has tabs on top, need to scroll to show input pad 
             -> Measure actual window display size and adjust body size to that
                 x Displays correctly initially but everything shifts upwards as soon as the song is loaded, both on mobile and desktop.
                     -> Remove flex auto in css and assign fixed height calculated from viewport height.
-- Singer has black clothes that is hardly visible against the black background.
-    -> Easy fix: Use a lighter color as stage background
-    -> Add a spotlight effect on top of the singer.
-    -> Add background art, a stage?
+x Singer has black clothes that is hardly visible against the black background.
+    -> Easy fix: Use a lighter color as stage background -> pick
+    -> Add a spotlight effect on top of the singer. -> tried and looks ugly
+    -> Add background art, a stage? -> No time
 
 Chunk 5 issues:
 x Playhead jump when play/resume.
