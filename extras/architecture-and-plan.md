@@ -541,7 +541,7 @@ x 7. Test: play and press keys. Verify each timing window produces the correct
 
 ---
 
-### Chunk 8 — Singer state machine and polish
+### ✅ Chunk 8 — Singer state machine and polish
 
 **Goal**: The singer sprite reacts to score state. The game has a start screen
 and an end screen. The app is ready for submission.
@@ -592,7 +592,7 @@ x 7. Add an end screen overlay (`#screen-end`) hidden initially:
 
 x 8. Wire `player.addListener({ onStop: () => showEndScreen(scoreManager.state) })`.
 
-9. Final responsive check: simulate iPhone SE (375×667) in DevTools. Verify
+x 9. Final responsive check: simulate iPhone SE (375×667) in DevTools. Verify
    buttons are tappable, lyrics are readable, singer is visible above the
    overlay, no overflow.
 
@@ -600,11 +600,11 @@ x 10. Final accessibility pass:
     - Add `aria-label` to all four input buttons (e.g. `aria-label="Up"`).
     - Ensure `<html lang="ja">` and a descriptive `<title>` are set.
 
-11. Run `npm run build` and verify the `dist/` output. Serve locally with
+x 11. Run `npm run build` and verify the `dist/` output. Serve locally with
     `npx serve dist` and confirm asset paths and the token env var work
     correctly in the production build.
 
-12. Push to `main`. Confirm GitHub Actions deploys successfully. Test the live
+x 12. Push to `main`. Confirm GitHub Actions deploys successfully. Test the live
     GitHub Pages URL on both desktop and a real mobile device.
 
 ---
@@ -620,9 +620,9 @@ x 10. Final accessibility pass:
 | 5 — Lyric rendering        | ✅ Complete | 2 days          |
 | 6 — Playhead + miss        | ✅ Complete | 2 days          |
 | 7 — Input + scoring        | ✅ Complete | 2–3 days        |
-| 8 — Singer + polish        | 🔄 In progress | 3–4 days        |
+| 8 — Singer + polish        | ✅ Complete | 3–4 days        |
 | Singer art (parallel)      | ✅ Complete | 1 week          |
-| Buffer / bug fixing        | —           | 3–4 days        |
+| Buffer / bug fixing        | 🔄 In progress | 3–4 days        |
 
 **~4 weeks of focused part-time work.**
 
