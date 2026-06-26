@@ -12,13 +12,6 @@
  *     on initial load for the first active phrase.
  *   - scoring.ts calls clearTimeout(cue.timeoutId) on a successful hit so the
  *     miss does not double-fire after a player press.
- *
- * Known limitation (TODO Chunk 7):
- *   setTimeout runs in wall-clock time. If the player pauses mid-phrase, miss
- *   timeouts continue counting down and will fire while the song is paused.
- *   The correct fix is to cancel all armed timeouts on pause and re-arm them
- *   on resume with updated delays. This requires hooking into the player's
- *   onPause / onPlay callbacks, which will be wired in Chunk 7/8.
  */
 
 import { resolveCue } from "./rating";

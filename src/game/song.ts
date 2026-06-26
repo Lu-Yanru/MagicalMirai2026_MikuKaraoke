@@ -31,12 +31,7 @@ export interface SongDescriptor {
 }
 
 // ─── Song catalog ──────────────────────────────────────────────────────────────
-//
-// TODO: the three non-TAKEOVER entries below use DUMMY placeholder URLs and
-// all-zero IDs so the app builds and runs end-to-end. They will NOT load a
-// real song until you replace songUrl/video with the actual versioned values
-// from the contest support page. TAKEOVER's values are copied as-is from the
-// original onAppReady call.
+// https://developer.textalive.jp/events/magicalmirai2026/
 export const SONGS: SongDescriptor[] = [
   {
     id: "kotaete",
