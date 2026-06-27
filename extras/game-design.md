@@ -94,7 +94,9 @@ phrases naturally fail the lead-time filter and receive fewer eligible beats:
 - 0–1 eligible beats → 0 cues
 - 2–3 eligible beats → 1 cue
 - 4–6 eligible beats → 2 cues
-- 7+ eligible beats  → 3 cues
+- 7-9 eligible beats  → 3 cues
+- 10-12 eligible beats  → 4 cues
+- 13+ eligible beats  → 5 cues
 
 **Layer 3 — Phase rotation**
 To prevent cues always landing on the same beat of the bar, preferred positions

@@ -200,7 +200,7 @@ For each phrase, four layers run in sequence:
 
 1. **Eligibility filter** — beats must have ≥ 350 ms lead time from phrase start
    and must not be the last beat of their bar (`position !== length − 1`).
-2. **Density targeting** — 0–1 eligible → 0 cues; 2–3 → 1; 4–6 → 2; 7+ → 3.
+2. **Density targeting** — 0–1 eligible → 0 cues; 2–3 → 1; 4–6 → 2; 7-9 → 3, 10-12 → 4, 13+ → 5.
 3. **Phase rotation** — preferred positions cycle every 2 phrases:
    Phase 0 = downbeat, Phase 1 = half-bar beat, Phase 2 = backbeat.
    Fallback pass uses any eligible beat if preferred positions yield nothing.

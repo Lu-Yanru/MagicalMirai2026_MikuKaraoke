@@ -29,10 +29,10 @@ import type { Direction, PhraseRow, RatingType, ScoreState } from "../types";
 // All values are the maximum absolute delta (ms) from the beat timestamp that
 // still qualifies for that rating tier.
 
-const WINDOW_PERFECT = 33;
-const WINDOW_GREAT   = 66;
-const WINDOW_GOOD    = 83;
-const WINDOW_BAD     = 100; // must equal HIT_WINDOW_MS in arrows.ts
+const WINDOW_PERFECT = 45;
+const WINDOW_GREAT   = 90;
+const WINDOW_GOOD    = 120;
+const WINDOW_BAD     = 150; // must equal HIT_WINDOW_MS in arrows.ts
 
 // ─── Point values ─────────────────────────────────────────────────────────────
 
