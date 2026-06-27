@@ -185,7 +185,9 @@ function getTargetCount(eligibleCount: number): number {
   if (eligibleCount <= 1) return 0;
   if (eligibleCount <= 3) return 1;
   if (eligibleCount <= 6) return 2;
-  return 3;
+  if (eligibleCount <= 9) return 3;
+  if (eligibleCount <= 12) return 4;
+  return 5;
 }
 
 /**
