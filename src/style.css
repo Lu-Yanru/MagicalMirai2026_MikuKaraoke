@@ -457,6 +457,18 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+#end-highscore {
+  font-size: 0.75rem;
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+}
+
+#end-new-record {
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: #d4af37; /* matches the S-rank gold in end-screen.ts's RATING_LETTER_COLORS */
+}
+
 /* Letter color is set inline per result by main.ts (gold/blue/green/purple/
    white — see RATING_LETTER_COLORS in end-screen.ts). font-weight: bold is
    the one fixed requirement from the spec, kept here rather than inline. */

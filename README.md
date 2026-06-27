@@ -6,7 +6,7 @@
 
 Supported platforms: Desktop, Tablet, Mobile
 
-Tested browsers: Chrome, Safari, Firefox, Brave
+Tested browsers: Chrome, Safari, Firefox, Microsoft Edge, Brave
 
 ## Introduction
 
@@ -20,14 +20,16 @@ points. Hitting cues more precisely (closer to the beat) gives a higher rating
 extra score. Missing a cue, or letting it run out, breaks the combo.
 
 Throughout the song, a hand-drawn Hatsune Miku character reacts to how well
-the player is doing — bouncing along to the beat, looking happy on a high
-combo, and looking sad after a miss — so it feels like singing karaoke
+the player is doing — shaking her head and her arms along to the beat,
+looking happy on a high combo, and looking sad after a miss — 
+so it feels like singing karaoke
 together with her rather than playing against a static UI.
 
 At the end of the song, the player gets a results screen with their final
 score, a percentage of the maximum possible score, a letter rating (S to D),
-a breakdown of how many Perfect/Great/Good/Bad/Miss hits they got, and their
-best combo of the run.
+a breakdown of how many Perfect/Great/Good/Bad/Miss hits they got, their
+best combo of the run, and whether the current score beats the highest score saved
+on this browser's site data.
 
 The player can pick from the four contest-designated songs sung by Hatsune Miku 
 from a song select screen before starting.
@@ -67,8 +69,7 @@ so players are motivated to improve on the game.
    https://developer.textalive.jp/.
 3. `npm install`
 4. `npm run dev` — opens a local dev server.
-5. (Optional) `npm run build && npm run preview` to check the production
-   build the same way GitHub Actions builds it for deployment.
+5. Open the local url in your browser.
 
 ## Architecture
 
@@ -80,10 +81,12 @@ project-root/
 │   ├── main.ts                    ← entry point: TextAlive Player setup, render loop, event wiring
 │   ├── style.css                  ← all layout, animation, and theming
 │   ├── types.ts                   ← shared TypeScript types (CueEntry, PhraseRow, ScoreState, etc.)
+│   ├── app-height.ts              ← measure the actual viewport size and scale index elements accordingly
 │   │
 │   ├── game/                      ← game logic, no DOM access
 │   │   ├── scheduler.ts           ← builds the beat-based cue schedule (see above)
 │   │   ├── scoring.ts             ← hit detection, rating, score/combo state
+│   │   ├── highescore.ts          ← save and retrieve high score
 │   │   ├── singer.ts              ← maps score state to a singer expression
 │   │   ├── song.ts                ← song catalog + currently selected song
 │   │   └── end-screen.ts          ← score → percentage → letter-rating math

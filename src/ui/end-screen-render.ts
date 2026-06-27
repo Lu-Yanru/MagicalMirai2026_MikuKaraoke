@@ -11,6 +11,7 @@
  */
 
 import { computeEndScreenData } from "../game/end-screen";
+import { getHighscore, saveHighscoreIfBetter } from "../game/highscore";
 import { getCurrentSong } from "../game/song";
 import { RATING_COLORS } from "./rating";
 import type { RatingType, ScoreState } from "../types";
@@ -40,6 +41,8 @@ const endScoreValueEl = document.getElementById("end-score-value")  as HTMLEleme
 const endPercentageEl = document.getElementById("end-percentage")   as HTMLElement;
 const endLetterEl     = document.getElementById("end-letter")       as HTMLElement;
 const endMaxComboEl   = document.getElementById("end-max-combo")    as HTMLElement;
+const endHighscoreEl  = document.getElementById("end-highscore")    as HTMLElement;
+const endNewRecordEl  = document.getElementById("end-new-record")   as HTMLElement;
 const endSingerImgEl  = document.getElementById("end-singer-img")   as HTMLImageElement;
 
 // Count <span> + label <span> pairs for each rating tier, keyed the same way
@@ -81,6 +84,13 @@ export function showEndScreen(state: ScoreState, totalCueCount: number): void {
 
   endLetterEl.textContent = data.letter;
   endLetterEl.style.color = data.letterColor;
+
+  // ── High score (local, per-browser — see game/highscore.ts header) ───────
+  // Save first so getHighscore() below reflects this run if it's a new best.
+  const songId = getCurrentSong().id;
+  const isNewRecord = saveHighscoreIfBetter(songId, state.score);
+  endHighscoreEl.textContent = `High Score: ${getHighscore(songId)}`;
+  endNewRecordEl.classList.toggle("hidden", !isNewRecord);
 
   // Breakdown rows: count + label, label colored to match the in-game
   // rating-pop color for that tier (RATING_COLORS, defined once in
