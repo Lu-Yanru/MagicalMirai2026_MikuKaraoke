@@ -82,7 +82,7 @@ body {
 #btn-play:hover  { background: rgba(255, 255, 255, 0.22); }
 #btn-play:active {
   background: rgba(255, 255, 255, 0.32);
-  transform: scale(0.95);
+  transform: scale(0.9);
 }
 
 #btn-play img {
@@ -343,7 +343,7 @@ body {
 #input-pad button:active,
 #input-pad button.key-pressed {
   background: rgba(255, 255, 255, 0.3);
-  transform: scale(0.95);
+  transform: scale(0.9);
 }
 
 #input-pad button img {
@@ -552,7 +552,7 @@ body {
 #btn-play-again:hover,
 #btn-main-menu:hover  { background: rgba(255, 255, 255, 0.22); }
 #btn-play-again:active,
-#btn-main-menu:active { transform: scale(0.95); }
+#btn-main-menu:active { transform: scale(0.9); }
 
 .end-buttons {
   display: flex;
@@ -816,7 +816,7 @@ body {
 .fullscreen-btn:hover  { background: rgba(255, 255, 255, 0.22); }
 .fullscreen-btn:active {
   background: rgba(255, 255, 255, 0.32);
-  transform: scale(0.95);
+  transform: scale(0.9);
 }
 
 /* Hidden by default; main.ts only un-hides these if the Fullscreen API is

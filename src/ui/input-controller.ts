@@ -81,8 +81,9 @@ export function initInputController(options: InputControllerOptions): void {
     if (isEndScreenShown()) return;
 
     if (!(target instanceof HTMLElement)) return;
-    const dir = target.closest("button")?.dataset["direction"] as Direction | undefined;
-    if (!dir) return;
+    const button = target.closest("button");
+    const dir = button?.dataset["direction"] as Direction | undefined;
+    if (!dir || !button) return;
     onDirection(dir);
   }
 
@@ -93,10 +94,31 @@ export function initInputController(options: InputControllerOptions): void {
     "touchstart",
     (e) => {
       e.preventDefault();
+      const target = e.target;
+      if (target instanceof HTMLElement) {
+        const button = target.closest("button");
+        button?.classList.add("key-pressed");
+      }
       handlePadInput(e.target);
     },
     { passive: false }
   );
+
+  inputPad.addEventListener("touchend", (e) => {
+    const target = e.target;
+    if (target instanceof HTMLElement) {
+      const button = target.closest("button");
+      button?.classList.remove("key-pressed");
+    }
+  });
+
+  inputPad.addEventListener("touchcancel", (e) => {
+    const target = e.target;
+    if (target instanceof HTMLElement) {
+      const button = target.closest("button");
+      button?.classList.remove("key-pressed");
+    }
+  });
 
   inputPad.addEventListener("click", (e) => {
     handlePadInput(e.target);
