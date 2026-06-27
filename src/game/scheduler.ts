@@ -179,7 +179,9 @@ export function buildSchedule(player: Player): PhraseRow[] {
  *   0–1 eligible  — phrase is too short or sparse; skip entirely
  *   2–3 eligible  — 1 cue (manageable for a brief phrase)
  *   4–6 eligible  — 2 cues (standard density)
- *   7+  eligible  — 3 cues (reserved for long phrases)
+ *   7–9   eligible — 3 cues (long phrase, denser to avoid a dead stretch)
+ *   10–12 eligible — 4 cues
+ *   13+   eligible — 5 cues (cap — see header note on unbounded phrase length)
  */
 function getTargetCount(eligibleCount: number): number {
   if (eligibleCount <= 1) return 0;
