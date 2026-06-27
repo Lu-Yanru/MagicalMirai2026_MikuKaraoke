@@ -146,6 +146,23 @@ let pendingArmOnResume = false;
 // browser policy), not real playback progress.
 const MAX_SANE_POSITION_JUMP_MS = 3000;
 
+// Number of consecutive frames (after the play/resume cooldown has fully
+// elapsed) the playhead has reported the exact same position while isPlaying
+// is supposedly true. Used to detect a silently stalled/blocked play() call
+// — e.g. iOS ignoring an autoplay attempt without ever rejecting it with a
+// catchable error, leaving onPlay() having already fired (so the SDK thinks
+// it's playing, and the Play button reads as "pause") while no real audio
+// ever starts and position never moves. This is the opposite failure shape
+// from MAX_SANE_POSITION_JUMP_MS above (which catches position jumping too
+// FAR forward, not standing still) — both are needed.
+let stallFrameCount = 0;
+let lastStallCheckPosition = -1;
+
+// ~90 frames is roughly 1.5s at 60fps — long enough that ordinary frame
+// jitter or a single dropped frame never false-positives, short enough that
+// the player isn't staring at a frozen game for long before recovery fires.
+const MAX_STALL_FRAMES = 90;
+
 // Blink state for the next phrase's waiting playhead.
 // Reset to 0 whenever a new phrase becomes "next".
 let nextBlinkIndex = 0;
@@ -289,6 +306,8 @@ player.addListener({
     activePreBlinkIndex = 0;
     activePreBlinkVisible = false;
     pendingArmOnResume = false;
+    stallFrameCount = 0;
+    lastStallCheckPosition = -1;
 
     // Build the full cue schedule (one PhraseRow per IPhrase).
     phraseRows = buildSchedule(player);
@@ -540,6 +559,23 @@ function tick(): void {
   } else {
     position = rawPosition;
     lastRenderedPosition = rawPosition;
+
+    // ── Stall guard: isPlaying reports true but position never advances ──────
+    if (isPlaying) {
+      if (rawPosition === lastStallCheckPosition) {
+        stallFrameCount++;
+        if (stallFrameCount >= MAX_STALL_FRAMES) {
+          recoverFromPlaybackGlitch();
+          return;
+        }
+      } else {
+        stallFrameCount = 0;
+        lastStallCheckPosition = rawPosition;
+      }
+    } else {
+      stallFrameCount = 0;
+      lastStallCheckPosition = -1;
+    }
   }
 
   // Arm miss-timeouts for the active phrase once the position has fully
@@ -758,6 +794,8 @@ function recoverFromPlaybackGlitch(): void {
   activePreBlinkVisible = false;
   nextBlinkIndex = 0;
   blinkVisible = false;
+  stallFrameCount = 0;
+  lastStallCheckPosition = -1;
 
   activeIndex = 0;
   nextIndex = 1;
