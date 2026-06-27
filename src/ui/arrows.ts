@@ -24,7 +24,7 @@ import type { PhraseRow, RatingType } from "../types";
  * A press is accepted up to HIT_WINDOW_MS after the beat timestamp.
  * Must match the Bad threshold in scoring.ts (Chunk 7) — keep in sync.
  */
-const HIT_WINDOW_MS = 100;
+const HIT_WINDOW_MS = 150;
 
 /**
  * Extra buffer added to the miss deadline so the resolution fires slightly

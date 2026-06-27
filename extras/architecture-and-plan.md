@@ -493,10 +493,10 @@ x 2. In `handleInput`:
      handles it naturally).
    - If direction matches, compute `delta = Math.abs(now - cue.beatTime)` and
      assign rating:
-     - `delta <= 33`  → Perfect
-     - `delta <= 66` → Great
-     - `delta <= 83` → Good
-     - `delta <= 100` → Bad
+     - `delta <= 45`  → Perfect
+     - `delta <= 90` → Great
+     - `delta <= 120` → Good
+     - `delta <= 150` → Bad
    - Call `clearTimeout(cue.timeoutId)` to cancel the miss timer.
    - Call `resolveCue(cue, rating)` to display the rating word.
    - Call `applyRating(rating)` to update score state.

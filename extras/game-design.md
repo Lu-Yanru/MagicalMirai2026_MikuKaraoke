@@ -123,14 +123,14 @@ and `resolved` state.
 
 ### Timing Windows and Ratings
 
-Each arrow cue has a hit window of ±250ms around the beat timestamp:
+Each arrow cue has a hit window of ±150ms around the beat timestamp:
 
 | Rating  | Condition                              | Combo effect | Color  |
 |---------|----------------------------------------|--------------|--------|
-| Perfect | correct direction, within ±33ms        | +1 combo     | Blue   |
-| Great   | correct direction, within ±66ms       | +1 combo     | Green   |
-| Good    | correct direction, within ±83ms       | +1 combo     | Yellow  |
-| Bad     | correct direction, within ±100ms       | reset to 0   | Purple   |
+| Perfect | correct direction, within ±45ms        | +1 combo     | Blue   |
+| Great   | correct direction, within ±90ms        | +1 combo     | Green   |
+| Good    | correct direction, within ±120ms       | +1 combo     | Yellow  |
+| Bad     | correct direction, within ±150ms       | reset to 0   | Purple   |
 | Miss    | wrong direction, or no press in window | reset to 0   | Red    |
 
 - A **wrong-direction press** is ignored entirely. The miss timeout fires

@@ -2,7 +2,7 @@
 
 [Play it here](https://lu-yanru.github.io/MagicalMirai2026_MikuKaraoke/)
 
-[Demo video] <!-- TODO: add link before submission -->
+[Demo video](https://youtu.be/TseMhS2m2hs)
 
 Supported platforms: Desktop, Tablet, Mobile
 
