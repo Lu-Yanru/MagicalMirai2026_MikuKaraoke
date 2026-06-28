@@ -56,7 +56,8 @@ export function initInputController(options: InputControllerOptions): void {
     // of whether a cue is currently active.
     directionButtons[direction].classList.add("key-pressed");
 
-    // Ignore auto-repeated keydown events from a held key
+    // Ignore auto-repeated keydown events from a held key — see header
+    // comment for why.
     if (e.repeat) return;
 
     onDirection(direction);

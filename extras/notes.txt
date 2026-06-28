@@ -56,7 +56,6 @@ x At the beginning of the song, the playhead starts moving early so the first ph
     -> Arm cues not immediately onPlay but in tick() after the cooldown frames settled.
 x In safari, autoplay the song glitches and goes immediately to the last phrase. On reload, no more autoplay and manually press the play button fixes the issue.
     -> Add a glitch guard that if the playhead jumps too much, consider it a glitch, stops and restart the song.
-    -> Use browser's signal onMediaElementSet to detect whether the audio actually starts playing or not and only fall back on player.timer.position.
 - No autoplay on ios
 x Sometimes retarting a song shows the end screen immediately after the song is reloaded.
     -> Set a guard that the end screen should only show close to the end of the song. Remove onStop() show end screen entirely and the ed detection in tick() becomes the only place to check if end screen should be shown.
