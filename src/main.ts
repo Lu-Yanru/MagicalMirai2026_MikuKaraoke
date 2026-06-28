@@ -138,6 +138,40 @@ let lastRenderedPosition = 0;
 // playhead ever reached them.
 let pendingArmOnResume = false;
 
+// Set the first frame after positionCooldownFrames reaches 0, to the
+// position observed at that moment. Compared against on every subsequent
+// frame to confirm real audio playback has actually begun before arming —
+// see MIN_REAL_ADVANCE_MS below for why a fixed frame-count cooldown alone
+// isn't sufficient.
+let armWaitBaselinePosition: number | null = null;
+
+// True only once the browser's real, underlying <audio> element has fired
+// its native "playing" event — i.e. audio is genuinely, audibly running.
+// This is deliberately NOT derived from player.timer.position: that value
+// can advance before real playback has actually begun, which is exactly what
+// made every earlier position-based heuristic here unreliable. The native media
+// event has no such ambiguity.
+let realAudioPlaying = false;
+
+// Minimum genuine forward movement [ms] required from armWaitBaselinePosition
+// before we trust that real playback has started and it's safe to arm miss-
+// timeouts. A fixed frame-count cooldown (POSITION_COOLDOWN_FRAMES) is long
+// enough for a warm replay/second song-select, where the audio context is
+// already initialized — but a FIRST load's network/decode latency is
+// unbounded and unrelated to frame count; on a slow connection it can run
+// well past that cooldown, leaving position still frozen at 0 when we'd
+// otherwise have armed wall-clock timeouts against audio that hadn't
+// actually started yet. Checking for genuine advance, however many frames
+// it takes, fixes this regardless of how long the real delay turns out to be.
+const MIN_REAL_ADVANCE_MS = 80;
+
+// The actual <audio> (or equivalent) element the SDK is driving, captured
+// once via onMediaElementSet. Used both to listen for the native "playing"
+// event (see realAudioPlaying above) and to encourage the browser to start
+// fetching/decoding the file as early as possible, rather than only once
+// requestPlay() is called.
+let mediaEl: HTMLMediaElement | null = null;
+
 // Maximum plausible position advance between two consecutive animation
 // frames during real playback. Generous enough to never false-positive on
 // frame jitter or background-tab throttling, but far smaller than jumping
@@ -276,7 +310,24 @@ player.addListener({
     // Standalone (non-managed): do nothing here. The start screen is visible
     // by default; loadSong() instead fires from the song-select buttons,
     // wired via initStartScreen() near the bottom of this file.
-   },
+  },
+
+  // Earliest point at which the real underlying media element exists.
+  // Attaching native listeners here, rather than guessing from Timer
+  // position, gives an unambiguous "real audio is genuinely playing" signal
+  // — see realAudioPlaying's header comment for why that matters. Setting
+  // preload="auto" here also nudges the browser to start fetching/decoding
+  // the audio as soon as the element exists, rather than waiting for
+  // requestPlay() to be the first thing that triggers loading.
+  onMediaElementSet(el: HTMLElement) {
+    if (!(el instanceof HTMLMediaElement)) return;
+    mediaEl = el;
+    mediaEl.preload = "auto";
+    mediaEl.addEventListener("playing", () => { realAudioPlaying = true; });
+    mediaEl.addEventListener("pause",   () => { realAudioPlaying = false; });
+    mediaEl.addEventListener("ended",   () => { realAudioPlaying = false; });
+    mediaEl.addEventListener("waiting", () => { realAudioPlaying = false; }); // buffering stall mid-playback
+  },
 
   // ── onVideoReady ─────────────────────────────────────────────────────────
   // Called when the song map and all lyric timing data are fully loaded.
@@ -297,7 +348,7 @@ player.addListener({
 
     // Reset render-loop state that's otherwise only ever initialized once at
     // module load. Without this, values left over from the PREVIOUS song
-    // poison tick() for the new one — see investigation note above.
+    // poison tick() for the new one.
     lastRenderedPosition = 0;
     positionCooldownFrames = 0;
     prevIsPlaying = false;
@@ -306,6 +357,8 @@ player.addListener({
     activePreBlinkIndex = 0;
     activePreBlinkVisible = false;
     pendingArmOnResume = false;
+    armWaitBaselinePosition = null;
+    realAudioPlaying = false;
     stallFrameCount = 0;
     lastStallCheckPosition = -1;
 
@@ -581,8 +634,22 @@ function tick(): void {
   // Arm miss-timeouts for the active phrase once the position has fully
   // stabilized since the most recent play/resume.
   if (pendingArmOnResume && positionCooldownFrames === 0 && phraseRows.length > 0) {
-    pendingArmOnResume = false;
-    armCues(phraseRows[activeIndex], position, (r) => scoreManager.applyRating(r));
+    // Require BOTH signals: realAudioPlaying (the browser's own native
+    // confirmation that audio is genuinely, audibly running) AND a small
+    // amount of genuine position advance (guards the opposite, much rarer
+    // case — some browser/Timer combo where the native event fires but
+    // position itself is still glitched/frozen for some unrelated reason).
+    if (armWaitBaselinePosition === null) {
+      armWaitBaselinePosition = position;
+    } else if (realAudioPlaying && position - armWaitBaselinePosition >= MIN_REAL_ADVANCE_MS) {
+      // Position has genuinely moved forward since the baseline — real
+      // playback has confirmed started. Safe to arm now, using the current
+      // (actually advancing) position.
+      pendingArmOnResume = false;
+      armWaitBaselinePosition = null;
+      armCues(phraseRows[activeIndex], position, (r) => scoreManager.applyRating(r));
+    }
+    // else: still frozen at/near baseline — keep waiting, arm nothing yet.
   }
 
   // ── Phrase advance ────────────────────────────────────────────────────────
@@ -790,6 +857,8 @@ function recoverFromPlaybackGlitch(): void {
   userInitiatedPause = true;
   isSeeking = false;
   pendingArmOnResume = false;
+  armWaitBaselinePosition = null;
+  realAudioPlaying = false;
   activePreBlinkIndex = 0;
   activePreBlinkVisible = false;
   nextBlinkIndex = 0;
