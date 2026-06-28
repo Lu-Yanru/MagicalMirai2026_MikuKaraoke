@@ -297,7 +297,7 @@ player.addListener({
 
     // Reset render-loop state that's otherwise only ever initialized once at
     // module load. Without this, values left over from the PREVIOUS song
-    // poison tick() for the new one — see investigation note above.
+    // poison tick() for the new one.
     lastRenderedPosition = 0;
     positionCooldownFrames = 0;
     prevIsPlaying = false;

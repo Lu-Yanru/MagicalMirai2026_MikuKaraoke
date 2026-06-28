@@ -111,7 +111,7 @@ export function debounceRawSignal(rawActive: boolean, position: number): void {
 
 /**
  * The current debounced presence signal. Use this instead of checking the
- * raw per-frame signal directly — see module header for why.
+ * raw per-frame signal directly.
  */
 export function isPresenceActiveNow(): boolean {
   return debouncedActive;

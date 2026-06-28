@@ -622,7 +622,7 @@ x 12. Push to `main`. Confirm GitHub Actions deploys successfully. Test the live
 | 7 — Input + scoring        | ✅ Complete | 2–3 days        |
 | 8 — Singer + polish        | ✅ Complete | 3–4 days        |
 | Singer art (parallel)      | ✅ Complete | 1 week          |
-| Buffer / bug fixing        | 🔄 In progress | 3–4 days        |
+| Buffer / bug fixing        | ✅ Complete | 3–4 days        |
 
 **~4 weeks of focused part-time work.**
 

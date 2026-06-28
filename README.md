@@ -16,8 +16,8 @@ color karaoke-style, in sync with the music. Below the lyrics, arrow cues
 (↑ ↓ ← →) appear on a timeline bar, placed on the beat. The player presses the
 matching arrow key (or taps the on-screen button) at the right moment to score
 points. Hitting cues more precisely (closer to the beat) gives a higher rating 
-(Perfect, Great, Good, or Bad), and chaining correct hits builds a combo for
-extra score. Missing a cue, or letting it run out, breaks the combo.
+(Perfect, Great, Good, or Bad), and chaining correct hits builds a combo. 
+Missing a cue breaks the combo.
 
 Throughout the song, a hand-drawn Hatsune Miku character reacts to how well
 the player is doing — shaking her head and her arms along to the beat,
